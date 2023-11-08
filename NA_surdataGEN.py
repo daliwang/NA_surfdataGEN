@@ -2,6 +2,8 @@ import netCDF4 as nc
 from scipy.interpolate import griddata
 import numpy as np
 import pandas as pd 
+from time import process_time
+#from memory_profiler import profile
 
 Points_in_land = "DataConversion_info/original_points_index.csv"
 
@@ -100,8 +102,8 @@ dst.createDimension('y_dim', y_dim.size)
 
 # Copy variables
 for name, variable in src.variables.items():
-
-    print("Copying varibale: "+ name + " dimensions: " + str(variable.dimensions))
+    start = process_time()
+    print("Working on varibale: "+ name + " dimensions: " + str(variable.dimensions))
     # need to move inside the if statement
     #x = dst.createVariable(name, variable.datatype, variable.dimensions)    
     # Copy variable attributes
@@ -127,8 +129,21 @@ for name, variable in src.variables.items():
         f_data1 = data[bool_mask]
         # Interpolate the variable
         o_data=np.zeros(land_points, dtype=variable.datatype)
-        
-        # Handle variables with more than two dimensions
+
+        # Handle variables with two dimensions
+        if (len(variable.dimensions) == 2):
+            source = src[name][:]
+            for i in range(land_points):
+                # source is in [lat, lon] format
+                o_data[i] = source[int(points_in_daymet_land[i][4]),int(points_in_daymet_land[i][5])]
+            f_data1 = griddata(points, o_data, (grid_y1, grid_x1), method=iMethod)
+
+            # put the masked data back to the data (with the daymet land mask)
+            f_data[bool_mask]=f_data1      
+            # Assign the interpolated data
+            dst[name][:] = f_data
+
+        # Handle variables with three dimensions
         if (len(variable.dimensions) == 3):
             for index in range(variable.shape[0]):
                 # get all the source data (global)
@@ -142,6 +157,7 @@ for name, variable in src.variables.items():
                 f_data[bool_mask]=f_data1
                 dst[name][index, :, :] = f_data
 
+        # Handle variables with four dimensions
         if (len(variable.dimensions) == 4):
             for index1 in range(variable.shape[0]):
                 for index2 in range(variable.shape[1]):
@@ -157,17 +173,10 @@ for name, variable in src.variables.items():
                     f_data[bool_mask]=f_data1
 
                     dst[name][index1,index2,:,:] = f_data            
-        if (len(variable.dimensions) == 2):
-            source = src[name][:]
-            for i in range(land_points):
-                # source is in [lat, lon] format
-                o_data[i] = source[int(points_in_daymet_land[i][4]),int(points_in_daymet_land[i][5])]
-            f_data1 = griddata(points, o_data, (grid_y1, grid_x1), method=iMethod)
 
-            # put the masked data back to the data (with the daymet land mask)
-            f_data[bool_mask]=f_data1      
-            # Assign the interpolated data
-            dst[name][:] = f_data
+        end = process_time()
+        print("Generating variable: " +name+ "takes  {}".format(end-start))
+
     else:
         # keep variables with the same dimension
         x = dst.createVariable(name, variable.datatype, variable.dimensions)
@@ -175,6 +184,10 @@ for name, variable in src.variables.items():
         dst[name].setncatts(src[name].__dict__)
         # Copy the data
         dst[name][:] = src[name][:]
+
+        end = process_time()
+        print("Coping variable: " +name+ "takes  {}".format(end-start))
+
 
 # Close the files
 src.close()
