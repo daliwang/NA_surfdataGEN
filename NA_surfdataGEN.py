@@ -17,8 +17,8 @@ Variable_nearest += ['PFTDATA_MASK','SOIL_COLOR', 'SOIL_ORDER', 'abm']
 Variable_nearest += ['EF1_BTR', 'EF1_CRP', 'EF1_FDT', 'EF1_FET', 'EF1_GRS', 'EF1_SHR']
 
 # nearest neighbor: "double" variables (added 11/10/2023)
-Variable_nearest += ['PCT_SAND', 'PCT_CLAY','ORGANIC' ,'PCT_NAT_PFT', 
-        'MONTHLY_LAI', 'MONTHLY_SAI' ,'MONTHLY_HEIGHT_TOP', 'MONTHLY_HEIGHT_BOT']
+#Variable_nearest += ['PCT_SAND', 'PCT_CLAY','ORGANIC' ,'PCT_NAT_PFT', 
+#        'MONTHLY_LAI', 'MONTHLY_SAI' ,'MONTHLY_HEIGHT_TOP', 'MONTHLY_HEIGHT_BOT']
 
 # nearest neighbor:"int" variables (gridcell)
 Variable_urban_nearest = ['URBAN_REGION_ID']
@@ -52,11 +52,15 @@ Variable_linear = ['FMAX', 'Ws', 'ZWT0', 'binfl', 'gdp',
 # linear:"double" variables (added 11/07/22023)
 Variable_linear += ['APATITE_P', 'PCT_CROP']
 
+#Variable_nearest = ['SLOPE', 'TOPO', 'PCT_GLACIER', 'PCT_LAKE', 'STD_ELEV']
+
+#Variable_linear = ['FMAX', 'Ws', 'ZWT0', 'binfl', 'gdp']
+
 # Open the source file
 src = nc.Dataset('surfdata.nc', 'r')
 
 # Create a new file
-dst = nc.Dataset('hr_surfdata.nc', 'w')
+dst = nc.Dataset('hr_surfdata_test1.nc', 'w')
 
 # Create new dimensions
 #dst.createDimension('x_dim', 7814)
@@ -79,10 +83,14 @@ TBOT = r_daymet.variables['TBOT'][0,:,:]
 # setup the bool_mask and XY mesh of the Daymet domain
 bool_mask = ~np.isnan(TBOT)
 grid_x, grid_y = np.meshgrid(x_dim,y_dim)
-grid_y1 = grid_y[bool_mask]
-grid_x1 = grid_x[bool_mask]
+grid_y1 = np.copy(grid_y[bool_mask])
+grid_x1 = np.copy(grid_x[bool_mask])
 
-print(TBOT.shape,bool_mask.shape, grid_x.shape, grid_x1.shape)
+gridcells= len(grid_x1)
+#grid_y1=grid_y1.compressed()
+#grid_x1=grid_x1.compressed()
+
+print(TBOT.shape,bool_mask.shape, grid_x.shape, grid_x1.shape, gridcells)
 # need to move into the loop
 #data = np.zeros((len(y_dim),len(x_dim)), dtype=variable.datatype)
 #f_data = np.ma.array(data, mask=bool_mask)
@@ -122,16 +130,23 @@ for name, variable in src.variables.items():
             continue    # Skip all variables that are included in the variable lists
 
         # create variables with the new dimensions
-        x = dst.createVariable(name, variable.datatype, variable.dimensions[:-2]+ ('y_dim', 'x_dim'))
+        x = dst.createVariable(name, variable.datatype, variable.dimensions[:-2]+ ('y_dim', 'x_dim'), fill_value = -9999)
         # Copy variable attributes
         dst[name].setncatts(src[name].__dict__)
-        
+        """
         # prepare the array for the interpolated result
-        f_data = np.ma.array(np.zeros((len(y_dim),len(x_dim)), dtype=variable.datatype), mask=bool_mask)
+        f_data = np.ma.array(np.empty((len(y_dim),len(x_dim)), dtype=variable.datatype), mask=bool_mask, fill_value=-9999)
         #data = np.zeros((len(y_dim),len(x_dim)), dtype=variable.datatype)
         #f_data = np.ma.array(data, mask=bool_mask)
-        f_data1 = f_data[bool_mask]
-        print(name, f_data1.shape, f_data.shape, f_data.mask.shape, bool_mask.shape)  
+
+        #data = np.zeros((len(y_dim),len(x_dim)), dtype=variable.datatype)
+        f_data =  np.ma.filled(f_data, np.nan)
+
+        f_data1 = np.copy(f_data[bool_mask])
+        #f_data1 = f_data1.compressed()
+        #print(name, f_data1.shape, f_data1.mask.shape, f_data.shape, f_data.mask.shape, bool_mask.shape)  
+        """ 
+        f_data1 = np.zeros(gridcells, dtype=variable.datatype)
 
         # Interpolate the variable
         o_data=np.zeros(land_points, dtype=variable.datatype)
@@ -144,12 +159,28 @@ for name, variable in src.variables.items():
                 o_data[i] = source[int(points_in_daymet_land[i][4]),int(points_in_daymet_land[i][5])]
               
             f_data1 = griddata(points, o_data, (grid_y1, grid_x1), method=iMethod)
-            print(name, o_data[0:5], f_data1[0:5], f_data1.shape, f_data.shape)    
-            # put the masked data back to the data (with the daymet land mask)
-            f_data[bool_mask]=f_data1   
+  
+            # put the masked data back to the data (with the daymet land mask
+            '''
+            f_data = np.ma.array(f_data, mask=bool_mask)
+            f_data[f_data.mask]=f_data1 
+
+            # fill the masked elements in f_data with the fill_value
+            #filled_f_data = np.ma.filled(f_data, -9999)
+            f_data = np.ma.filled(f_data, -9999)
+            '''
+            bool_mask = ~np.isnan(TBOT)
+            f_data = np.ma.array(np.empty((len(y_dim),len(x_dim)), dtype=variable.datatype), mask=bool_mask, fill_value=-9999)
+            f_data =  np.where(f_data.mask, f_data, np.nan)
+            f_data[bool_mask]=f_data1 
 
             # Assign the interpolated data
-            dst[name][:] = f_data
+            dst[name][:] = np.copy(f_data)
+            print(name, o_data[0:5], f_data1[0:5], f_data[0,5254:5261], f_data1.shape, f_data.shape)
+            print("o_data, f_data1, f_data, dst: max/min/sum")  
+            print(np.nanmax(o_data), np.nanmax(f_data1),np.nanmax(f_data[f_data != -9999]),np.nanmax(dst[name]))
+            print(np.nanmin(o_data), np.nanmin(f_data1),np.nanmin(f_data[f_data != -9999]),np.nanmin(dst[name]))   
+            print(np.nansum(o_data), np.nansum(f_data1),np.nansum(f_data[f_data != -9999]),np.nansum(dst[name]))  
 
         # Handle variables with three dimensions
         if (len(variable.dimensions) == 3):
@@ -161,10 +192,20 @@ for name, variable in src.variables.items():
                       o_data[i] = source[int(points_in_daymet_land[i][4]),int(points_in_daymet_land[i][5])]
                 f_data1 = griddata(points, o_data, (grid_y1, grid_x1), method=iMethod)
 
-                # put the masked data back to the data (with the daymet land mask)
-                f_data[bool_mask]=f_data1
-                dst[name][index, :, :] = f_data
-                print(name, index, o_data[0:5], f_data1[0:5], f_data1.shape, f_data.shape)  
+                # create a mask array to hold the interpolated data
+                bool_mask = ~np.isnan(TBOT)
+                f_data = np.ma.array(np.empty((len(y_dim),len(x_dim)), dtype=variable.datatype), mask=bool_mask, fill_value=-9999)
+                f_data =  np.where(f_data.mask, f_data, np.nan)
+                f_data[bool_mask]=f_data1 
+
+                # Assign the interpolated data to dst.variable
+                dst[name][index,:,:] = np.copy(f_data)
+                print(name, index, o_data[0:5], f_data1[0:5], f_data[0,5254:5261], f_data1.shape, f_data.shape)
+                print("o_data, f_data1, f_data, dst: max/min/sum")  
+                print(np.nanmax(o_data), np.nanmax(f_data1),np.nanmax(f_data[f_data != -9999]),np.nanmax(dst[name][index,:,:]))
+                print(np.nanmin(o_data), np.nanmin(f_data1),np.nanmin(f_data[f_data != -9999]),np.nanmin(dst[name][index,:,:]))   
+                print(np.nansum(o_data), np.nansum(f_data1),np.nansum(f_data[f_data != -9999]),np.nansum(dst[name][index,:,:]))  
+
 
         # Handle variables with four dimensions
         if (len(variable.dimensions) == 4):
@@ -176,13 +217,21 @@ for name, variable in src.variables.items():
                     for i in range(land_points):
                         # source is in [lat, lon] format
                           o_data[i] = source[int(points_in_daymet_land[i][4]),int(points_in_daymet_land[i][5])]
-                    f_data1 = griddata(points, o_data, (grid_y1, grid_x1), method=iMethod)
+                    f_data1 = griddata(points, o_data, (grid_y1, grid_x1), method=iMethod)                      
 
-                    # put the masked data back to the data (with the daymet land mask)
-                    f_data[bool_mask]=f_data1
+                    # create a mask array to hold the interpolated data
+                    bool_mask = ~np.isnan(TBOT)
+                    f_data = np.ma.array(np.empty((len(y_dim),len(x_dim)), dtype=variable.datatype), mask=bool_mask, fill_value=-9999)
+                    f_data =  np.where(f_data.mask, f_data, np.nan)
+                    f_data[bool_mask]=f_data1 
 
-                    dst[name][index1,index2,:,:] = f_data
-                    print(name, index1, index2, o_data[0:5], f_data1[0:5], f_data1.shape, f_data.shape)         
+                    # Assign the interpolated data to dst.variable
+                    dst[name][index1,index2,:,:] = np.copy(f_data)
+                print(name, index1, index2, o_data[0:5], f_data1[0:5], f_data[0,5254:5261], f_data1.shape, f_data.shape)
+                print("o_data, f_data1, f_data, dst: max/min/sum")  
+                print(np.nanmax(o_data), np.nanmax(f_data1),np.nanmax(f_data[f_data != -9999]),np.nanmax(dst[name][index1,index2,:,:]))
+                print(np.nanmin(o_data), np.nanmin(f_data1),np.nanmin(f_data[f_data != -9999]),np.nanmin(dst[name][index1,index2,:,:]))   
+                print(np.nansum(o_data), np.nansum(f_data1),np.nansum(f_data[f_data != -9999]),np.nansum(dst[name][index1,index2,:,:]))  
 
         end = process_time()
         print("Generating variable: " +name+ " takes  {}".format(end-start))
