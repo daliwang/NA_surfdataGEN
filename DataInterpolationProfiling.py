@@ -16,8 +16,8 @@ list =1
 
 start0 = process_time()
 # nearest neighbor:"double" variables
-#Variable_nn_double = ['SLOPE']
-Variable_nn_double = ['SLOPE', 'TOPO', 'PCT_GLACIER', 'PCT_LAKE', 'STD_ELEV']
+Variable_nn_double = ['SLOPE']
+#Variable_nn_double = ['SLOPE', 'TOPO', 'PCT_GLACIER', 'PCT_LAKE', 'STD_ELEV']
 
 # nearest neighbor:"int" variables
 Variable_nn_int = ['PFTDATA_MASK','SOIL_COLOR', 'SOIL_ORDER', 'abm']
@@ -42,6 +42,10 @@ double  binfl(gridcell) "
 double    gdp(gridcell) "
 double  peatf(gridcell) "
 
+// these 2 missing variables are added 11/06/2023
+APATITE_P(lsmlat, lsmlon) ;
+PCT_CROP(lsmlat, lsmlon) ;
+
 double          Ds(gridcell) "
 double       Dsmax(gridcell) "
 double          F0(gridcell) "
@@ -61,6 +65,14 @@ double    PCT_LAKE(gridcell)
 double    STD_ELEV(gridcell) 
 double       SLOPE(gridcell)
 double        TOPO(gridcell) 
+
+// these 6 missing variables are added 11/06/2023
+double EF1_BTR(lsmlat, lsmlon) ;
+double EF1_CRP(lsmlat, lsmlon) ;
+double EF1_FDT(lsmlat, lsmlon) ;
+double EF1_FET(lsmlat, lsmlon) ;
+double EF1_GRS(lsmlat, lsmlon) ;
+double EF1_SHR(lsmlat, lsmlon) ;
 
 int PFTDATA_MASK(gridcell) 
 int  SOIL_COLOR(gridcell) 
@@ -100,12 +112,12 @@ if save:
 
 start = process_time()
 # get the fine resolution data and the locations (lat, lon)
-r_daymet = nc.Dataset('Daymet_FSDS.nc', 'r', format='NETCDF4')
+r_daymet = nc.Dataset('TBOT.201401.nc', 'r', format='NETCDF4')
 x_coor = r_daymet.variables['x'][:]  # 1D x-axis
 y_coor = r_daymet.variables['y'][:]  # 1D y-axis
-FSDS = r_daymet.variables['FSDS'][0,:,:]
+TBOT = r_daymet.variables['TBOT'][0,:,:]
 
-mask_d = np.where(~np.isnan(FSDS), 1, 0)
+mask_d = np.where(~np.isnan(TBOT), 1, 0)
 data = np.zeros((len(y_coor),len(x_coor)), dtype='double')
 f_data = np.ma.array(data, mask=mask_d)
 grid_x, grid_y = np.meshgrid(x_coor,y_coor)
