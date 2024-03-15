@@ -5,6 +5,10 @@ import numpy as np
 import pandas as pd 
 from time import process_time
 #from memory_profiler import profile
+from pyproj import Proj
+from pyproj import Transformer
+from pyproj import CRS
+
 
 def main():
     args = sys.argv[1:]
@@ -19,8 +23,8 @@ def main():
         print(" The code generate 2D NA surfdata from 0.5x0.5 degree globla surfdata")              
         exit(0)
 
-
-    Points_in_land = "DataConversion_info/original_points_index.csv"
+    UNSTRUCTURED=True   # 1D
+    #UNSTRUCTURED=False  # 2D
 
     # Only wariables listed will be processed
 
@@ -76,16 +80,35 @@ def main():
          Variable_nearest += ['PCT_SAND', 'PCT_CLAY','ORGANIC' ,'PCT_NAT_PFT', 
         'MONTHLY_LAI', 'MONTHLY_SAI' ,'MONTHLY_HEIGHT_TOP', 'MONTHLY_HEIGHT_BOT']
        
+   #Proj4: +proj=lcc +lon_0=-100 +lat_1=25 +lat_2=60 +k=1 +x_0=0 +y_0=0 +R=6378137 +f=298.257223563 +units=m  +no_defs
+    geoxy_proj_str = "+proj=lcc +lon_0=-100 +lat_0=42.5 +lat_1=25 +lat_2=60 +x_0=0 +y_0=0 +R=6378137 +f=298.257223563 +units=m +no_defs"
+    geoxyProj = CRS.from_proj4(geoxy_proj_str)
+    # EPSG: 4326
+    # Proj4: +proj=longlat +datum=WGS84 +no_defs
+    lonlatProj = CRS.from_epsg(4326) # in lon/lat coordinates
+    Txy2lonlat = Transformer.from_proj(geoxyProj, lonlatProj, always_xy=True)
+    Tlonlat2xy = Transformer.from_proj(lonlatProj, geoxyProj, always_xy=True)
+
     # Open the source file
     src = nc.Dataset('surfdata.nc', 'r')
-
+    # points = [y,x] coordinates for src's grid
+    src_resx = 0.5
+    src_resy = 0.5
+    src_lat = src.variables['LATIXY'][...]
+    src_lon = src.variables['LONGXY'][...]
+    src_x,src_y = Tlonlat2xy.transform(src_lon,src_lat)
+    src_lon[src_lon<0.0]=360+src_lon[src_lon<0.0]
+    
+    
     # Create a new file
     if user_option == '1':
         output_file = "hr_surfdata_v1_part1.nc"
     if user_option == '2':
         output_file = "hr_surfdata_v1_part2.nc"
     if user_option == 'all':
-        output_file = "Daymet4.1km.2D.surfdata_v1.nc"
+        output_file = "surfdata_Daymet4.1km.2d.v1.nc"
+        if UNSTRUCTURED:
+            output_file = "surfdata_Daymet4.1km.1d.v1.nc"
 
     dst = nc.Dataset(output_file, 'w')
 
@@ -98,39 +121,118 @@ def main():
     dst.setncatts(src.__dict__)
 
     # get the fine resolution data and the locations (lat, lon)
-    r_daymet = nc.Dataset('TBOT.201401.nc', 'r', format='NETCDF4')
+    r_daymet = nc.Dataset('clmforc.Daymet4.1km.TBOT.2014-01.nc', 'r', format='NETCDF4')
     x_dim = r_daymet['x']  # 1D x-axis
     y_dim = r_daymet['y']  # 1D y-axis
     TBOT = r_daymet.variables['TBOT'][0,:,:]
 
+    grid_ids = np.linspace(0, len(x_dim)*len(y_dim)-1, len(x_dim)*len(y_dim), dtype=int)
+    grid_ids = grid_ids.reshape(TBOT.shape)
+    grid_xids = np.indices(grid_ids.shape)[1]
+    grid_yids = np.indices(grid_ids.shape)[0]
+
     # setup the bool_mask and XY mesh of the Daymet domain
     bool_mask = ~np.isnan(TBOT)
     grid_x, grid_y = np.meshgrid(x_dim,y_dim)
+    lon,lat = Txy2lonlat.transform(grid_x,grid_y)
+
     grid_y1 = np.copy(grid_y[bool_mask])
     grid_x1 = np.copy(grid_x[bool_mask])
 
     gridcells= len(grid_x1)
 
+    # masked daymet gridcell's lon/lat
+    grid_lon,grid_lat = Txy2lonlat.transform(grid_x1,grid_y1)
+    grid_lon[grid_lon<0.0]=360+grid_lon[grid_lon<0.0]
+
     print(TBOT.shape,bool_mask.shape, grid_x.shape, grid_x1.shape, gridcells)
     del grid_x, grid_y
 
-    # the X, Y of the points (GCS_WGS_84)in 
-    # read in the points within daymet land mask
-    df= pd.read_csv(Points_in_land, header=0)
-    points_in_daymet_land = df.values.tolist()
 
     # prepare the data source with points_in_daymet_land
-    # we use (Y, X) coordinates instead (lat,lon) for efficient interpolation
-    land_points = len(points_in_daymet_land)
+    idxy = np.nonzero((src_lat<=max(grid_lat)+src_resy) & (src_lat>=min(grid_lat)-src_resy) & \
+                      (src_lon<=max(grid_lon)+src_resx) & (src_lon>=min(grid_lon)-src_resx) )
+    points_in_daymet_land = {}
+    points_in_daymet_land[0] = src_x[idxy]
+    points_in_daymet_land[1] = src_y[idxy]
+    points_in_daymet_land[2] = src_lat[idxy]
+    points_in_daymet_land[3] = src_lon[idxy]
+    points_in_daymet_land[4] = idxy[0]
+    points_in_daymet_land[5] = idxy[1]
+    land_points = len(points_in_daymet_land[0])
     points=np.zeros((land_points, 2), dtype='double')
-    for i in range(land_points):
-        # points = [y,x] coordinates for 
-        points[i,0] = points_in_daymet_land[i][1]
-        points[i,1] = points_in_daymet_land[i][0]
+    points[:,0] = src_y[idxy]
+    points[:,1] = src_x[idxy]
 
     # Create new dimensions
     dst.createDimension('x_dim', x_dim.size)
     dst.createDimension('y_dim', y_dim.size)
+
+    dst_var = dst.createVariable('x_dim', np.float32, ('x_dim'))
+    dst_var.units = "m"
+    dst_var.long_name = "x coordinate of projection"
+    dst_var.standard_name = "projection_x_coordinate"
+    dst['x_dim'][...] = np.copy(x_dim)
+    dst_var = dst.createVariable('y_dim', np.float32, ('y_dim'))
+    dst_var.units = "m"
+    dst_var.long_name = "y coordinate of projection"
+    dst_var.standard_name = "projection_y_coordinate"
+    dst['y_dim'][...] = np.copy(y_dim)
+
+    dst_var = dst.createVariable('lambert_conformal_conic', np.short)
+    dst_var.grid_mapping_name = "lambert_conformal_conic"
+    dst_var.longitude_of_central_meridian = -100.
+    dst_var.latitude_of_projection_origin = 42.5
+    dst_var.false_easting = 0.
+    dst_var.false_northing = 0.
+    dst_var.standard_parallel = 25., 60.
+    dst_var.semi_major_axis = 6378137.
+    dst_var.inverse_flattening = 298.257223563
+
+    if UNSTRUCTURED:
+        dst_var = dst.createVariable('lon', np.float32, ('y_dim','x_dim'))
+        dst_var.units = "degrees_east"
+        dst_var.long_name = "longitude coordinate"
+        dst_var.standard_name = "longitude"
+        dst['lon'][...] = np.copy(lon)
+        dst_var = dst.createVariable('lat', np.float32, ('y_dim','x_dim'))
+        dst_var.units = "degrees_north"
+        dst_var.long_name = "latitude coordinate"
+        dst_var.standard_name = "latitude"
+        dst['lat'][...] = np.copy(lat)
+
+        dst.createDimension('gridcell', gridcells)
+        
+        dst_var = dst.createVariable('gridID', np.int32, ('gridcell'))
+        dst_var.long_name = 'gridId in the NA domain'
+        dst_var.decription = "start from #0 at the upper left corner of the domain, covering all land and ocean gridcells" 
+        dst['gridID'][...] = np.copy(grid_ids[bool_mask])
+
+        dst_var = dst.createVariable('gridXID', np.int32, ('gridcell'))
+        dst_var.long_name = 'gridId x in the NA domain'
+        dst_var.decription = "start from #0 at the upper left corner and from west to east of the domain, with gridID=gridXID+gridYID*x_dim" 
+        dst.variables['gridXID'][...] = np.copy(grid_xids[bool_mask])
+    
+        dst_var = dst.createVariable('gridYID', np.int32, ('gridcell'))
+        dst_var.long_name = 'gridId y in the NA domain'
+        dst_var.decription = "start from #0 at the upper left corner and from north to south of the domain, with gridID=gridXID+gridYID*y_dim" 
+        dst.variables['gridYID'][...] = np.copy(grid_yids[bool_mask])
+    else:
+        dst_var = dst.createVariable('gridID', np.int32, ('y_dim','x_dim'))
+        dst_var.long_name = 'gridId in the NA domain'
+        dst_var.decription = "start from #0 at the upper left corner of the domain, covering all land and ocean gridcells" 
+        dst.variables['gridID'][...] = np.copy(grid_ids)
+    
+        dst_var = dst.createVariable('gridXID', np.int32, ('y_dim','x_dim'))
+        dst_var.long_name = 'gridId x in the NA domain'
+        dst_var.decription = "start from #0 at the upper left corner and from west to east of the domain, with gridID=gridXID+gridYID*x_dim" 
+        dst.variables['gridXID'][...] = np.copy(grid_xids)
+    
+        dst_var = dst.createVariable('gridYID', np.int32, ('y_dim','x_dim'))
+        dst_var.long_name = 'gridId y in the NA domain'
+        dst_var.decription = "start from #0 at the upper left corner and from north to south of the domain, with gridID=gridXID+gridYID*y_dim" 
+        dst.variables['gridYID'][...] = np.copy(grid_yids)
+        
 
     count = 0 # record how may 2D layers have been processed 
 
@@ -142,12 +244,10 @@ def main():
         # Check if the last two dimensions are lsmlat and lsmlon
         if (variable.dimensions[-2:] == ('lsmlat', 'lsmlon')):
             # Determine the interpolation method
-            if name in Variable_nearest:
-                iMethod = 'nearest'
-            elif name in Variable_linear:
+            if name in Variable_linear:
                 iMethod = 'linear'
             else:
-                continue    # Skip all variables that are included in the variable lists
+                iMethod = 'nearest'
 
             # create variables with the new dimensions
 
@@ -156,9 +256,11 @@ def main():
             else:
                 fill_value = np.nan
 
-            x = dst.createVariable(name, variable.datatype, variable.dimensions[:-2]+ ('y_dim', 'x_dim'), \
-                fill_value = fill_value, zlib=True, complevel=5)
-            
+            if UNSTRUCTURED:
+                x = dst.createVariable(name, variable.datatype, variable.dimensions[:-2]+ ('gridcell',), fill_value = fill_value)
+            else:
+                x = dst.createVariable(name, variable.datatype, variable.dimensions[:-2]+ ('y_dim', 'x_dim'), fill_value = fill_value)
+                
 	    # Copy variable attributes
             dst[name].setncatts(src[name].__dict__)
 
@@ -171,26 +273,31 @@ def main():
             # Handle variables with two dimensions
             if (len(variable.dimensions) == 2):
                 source = src[name][:]
-                for i in range(land_points):
-                    # source is in [lat, lon] format
-                    o_data[i] = source[int(points_in_daymet_land[i][4]),int(points_in_daymet_land[i][5])]
-                  
+                o_data = source[points_in_daymet_land[4][:],points_in_daymet_land[5][:]]
                 f_data1 = griddata(points, o_data, (grid_y1, grid_x1), method=iMethod)
+                if name=='AREA': f_data1[...] = 1.0
+                if name=='LONGXY': f_data1[...] = grid_lon
+                if name=='LATIXY': f_data1[...] = grid_lat
+                
+                if UNSTRUCTURED:
+                    # Assign the interpolated data
+                    dst[name][...] = np.copy(f_data1)
+                    
+                else:
       
                 # put the masked data back to the data (with the daymet land mask
 
-                bool_mask = ~np.isnan(TBOT)
-                f_data = np.ma.array(np.empty((len(y_dim),len(x_dim)), dtype=variable.datatype), mask=bool_mask, fill_value=fill_value)
-                f_data =  np.where(f_data.mask, f_data, fill_value)
-                f_data[bool_mask]=f_data1 
-
+                    f_data = np.ma.array(np.empty((len(y_dim),len(x_dim)), dtype=variable.datatype), mask=bool_mask, fill_value=fill_value)
+                    f_data =  np.where(f_data.mask, f_data, fill_value)
+                    f_data[bool_mask]=f_data1 
+                    
                 # Assign the interpolated data
-                dst[name][:] = np.copy(f_data)
-                print(name, o_data[0:5], f_data1[0:5], f_data[0,5254:5261], f_data1.shape, f_data.shape)
-                print("o_data, f_data1, f_data, dst: max/min/sum")  
-                print(np.nanmax(o_data), np.nanmax(f_data1),np.nanmax(f_data[f_data != -9999]),np.nanmax(dst[name]))
-                print(np.nanmin(o_data), np.nanmin(f_data1),np.nanmin(f_data[f_data != -9999]),np.nanmin(dst[name]))   
-                print(np.nansum(o_data), np.nansum(f_data1),np.nansum(f_data[f_data != -9999]),np.nansum(dst[name]))  
+                    dst[name][...] = np.copy(f_data)
+                    
+                #print("o_data, f_data1, f_data, dst: max/min/sum")  
+                #print(np.nanmax(o_data), np.nanmax(f_data1),np.nanmax(f_data[f_data != -9999]),np.nanmax(dst[name]))
+                #print(np.nanmin(o_data), np.nanmin(f_data1),np.nanmin(f_data[f_data != -9999]),np.nanmin(dst[name]))   
+                #print(np.nansum(o_data), np.nansum(f_data1),np.nansum(f_data[f_data != -9999]),np.nansum(dst[name]))  
 
                 count = count + 1
 
@@ -199,24 +306,27 @@ def main():
                 for index in range(variable.shape[0]):
                     # get all the source data (global)
                     source = src[name][index,:,:]
-                    for i in range(land_points):
-                         # source is in [lat, lon] format
-                          o_data[i] = source[int(points_in_daymet_land[i][4]),int(points_in_daymet_land[i][5])]
+                    o_data = source[points_in_daymet_land[4][:],points_in_daymet_land[5][:]]
                     f_data1 = griddata(points, o_data, (grid_y1, grid_x1), method=iMethod)
+                    
+                    if UNSTRUCTURED:
+                        # Assign the interpolated data
+                        dst[name][index,...] = np.copy(f_data1)
+                    else:
 
                     # create a mask array to hold the interpolated data
-                    bool_mask = ~np.isnan(TBOT)
-                    f_data = np.ma.array(np.empty((len(y_dim),len(x_dim)), dtype=variable.datatype), mask=bool_mask, fill_value=fill_value)
-                    f_data =  np.where(f_data.mask, f_data, fill_value)
-                    f_data[bool_mask]=f_data1 
 
+                        f_data = np.ma.array(np.empty((len(y_dim),len(x_dim)), dtype=variable.datatype), mask=bool_mask, fill_value=fill_value)
+                        f_data =  np.where(f_data.mask, f_data, fill_value)
+                        f_data[bool_mask]=f_data1 
+    
                     # Assign the interpolated data to dst.variable
-                    dst[name][index,:,:] = np.copy(f_data)
-                    print(name, index, o_data[0:5], f_data1[0:5], f_data[0,5254:5261], f_data1.shape, f_data.shape)
-                    print("o_data, f_data1, f_data, dst: max/min/sum")  
-                    print(np.nanmax(o_data), np.nanmax(f_data1),np.nanmax(f_data[f_data != -9999]),np.nanmax(dst[name][index,:,:]))
-                    print(np.nanmin(o_data), np.nanmin(f_data1),np.nanmin(f_data[f_data != -9999]),np.nanmin(dst[name][index,:,:]))   
-                    print(np.nansum(o_data), np.nansum(f_data1),np.nansum(f_data[f_data != -9999]),np.nansum(dst[name][index,:,:]))  
+                        dst[name][index,...] = np.copy(f_data)
+                        
+                    #print("o_data, f_data1, f_data, dst: max/min/sum")  
+                    #print(np.nanmax(o_data), np.nanmax(f_data1),np.nanmax(f_data[f_data != -9999]),np.nanmax(dst[name][index,:,:]))
+                    #print(np.nanmin(o_data), np.nanmin(f_data1),np.nanmin(f_data[f_data != -9999]),np.nanmin(dst[name][index,:,:]))   
+                    #print(np.nansum(o_data), np.nansum(f_data1),np.nansum(f_data[f_data != -9999]),np.nansum(dst[name][index,:,:]))  
 
                 count = count + variable.shape[0]
 
@@ -227,24 +337,26 @@ def main():
                         # get all the source data (global)
 
                         source = src[name][index1, index2,:, :]
-                        for i in range(land_points):
-                            # source is in [lat, lon] format
-                              o_data[i] = source[int(points_in_daymet_land[i][4]),int(points_in_daymet_land[i][5])]
+                        o_data = source[points_in_daymet_land[4][:],points_in_daymet_land[5][:]]
+                        
                         f_data1 = griddata(points, o_data, (grid_y1, grid_x1), method=iMethod)                      
+                        if UNSTRUCTURED:
+                            # Assign the interpolated data
+                            dst[name][index1,index2,...] = np.copy(f_data1)
+                        else:
 
                         # create a mask array to hold the interpolated data
-                        bool_mask = ~np.isnan(TBOT)
-                        f_data = np.ma.array(np.empty((len(y_dim),len(x_dim)), dtype=variable.datatype), mask=bool_mask, fill_value=fill_value)
-                        f_data =  np.where(f_data.mask, f_data, fill_value)
-                        f_data[bool_mask]=f_data1 
-
+                            f_data = np.ma.array(np.empty((len(y_dim),len(x_dim)), dtype=variable.datatype), mask=bool_mask, fill_value=fill_value)
+                            f_data =  np.where(f_data.mask, f_data, fill_value)
+                            f_data[bool_mask]=f_data1 
+    
                         # Assign the interpolated data to dst.variable
-                        dst[name][index1,index2,:,:] = np.copy(f_data)
-                        print(name, index1, index2, o_data[0:5], f_data1[0:5], f_data[0,5254:5261], f_data1.shape, f_data.shape)
-                        print("o_data, f_data1, f_data, dst: max/min/sum")  
-                        print(np.nanmax(o_data), np.nanmax(f_data1),np.nanmax(f_data[f_data != -9999]),np.nanmax(dst[name][index1,index2,:,:]))
-                        print(np.nanmin(o_data), np.nanmin(f_data1),np.nanmin(f_data[f_data != -9999]),np.nanmin(dst[name][index1,index2,:,:]))   
-                        print(np.nansum(o_data), np.nansum(f_data1),np.nansum(f_data[f_data != -9999]),np.nansum(dst[name][index1,index2,:,:]))  
+                            dst[name][index1,index2,...] = np.copy(f_data)
+
+                        #print("o_data, f_data1, f_data, dst: max/min/sum")  
+                        #print(np.nanmax(o_data), np.nanmax(f_data1),np.nanmax(f_data[f_data != -9999]),np.nanmax(dst[name][index1,index2,:,:]))
+                        #print(np.nanmin(o_data), np.nanmin(f_data1),np.nanmin(f_data[f_data != -9999]),np.nanmin(dst[name][index1,index2,:,:]))   
+                        #print(np.nansum(o_data), np.nansum(f_data1),np.nansum(f_data[f_data != -9999]),np.nansum(dst[name][index1,index2,:,:]))  
 
                     count = count + variable.shape[1]
 
@@ -254,13 +366,13 @@ def main():
         else:
 
             # keep variables with the same dimension
-            x = dst.createVariable(name, variable.datatype, variable.dimensions,\
-                zlib=True, complevel=5)
+            xerr = dst.createVariable(name, variable.datatype, variable.dimensions)
             # Copy variable attributes
             dst[name].setncatts(src[name].__dict__)
             # Copy the data
-            dst[name][:] = src[name][:]
 
+            dst[name][...] = src[name][...]
+            
             end = process_time()
             print("Copying variable: " +name+ " takes  {}".format(end-start))
             
@@ -270,6 +382,8 @@ def main():
             dst = nc.Dataset(output_file, 'a')
 
             count = 0
+        
+        print(count)
 
     # Close the files
     src.close()
