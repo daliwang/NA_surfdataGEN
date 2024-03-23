@@ -8,6 +8,14 @@ from time import process_time
 from pyproj import Proj
 from pyproj import Transformer
 from pyproj import CRS
+import datetime
+
+# Get current date
+current_date = datetime.datetime.now()
+
+# Format date as yymmdd
+date_string = current_date.strftime('%y%m%d')
+
 
 
 def main():
@@ -18,12 +26,18 @@ def main():
         print("Example use: python NA_surfdataGEN.py <domain_option>")
         print(" The code generate 2D NA surfdata from 0.5x0.5 degree globla surfdata")              
         exit(0)
-    
+
+    # Get current date
+    current_date = datetime.datetime.now()
+
+    # Format date as yymmdd
+    date_string = current_date.strftime('%y%m%d')
+
     if (domain_type == '1'):
-        output_file = "surfdata.Daymet_GSWP3_TESSFA.4km.1d.nc"
+        output_file = "surfdata.Daymet_GSWP3_TESSFA.4km.1d.c"+ data_string + ".nc"
         
     if (domain_type == '2'):
-        output_file = "surfdata.Daymet_GSWP3_TESSFA.4km.2d.nc"
+        output_file = "surfdata.Daymet_GSWP3_TESSFA.4km.2d.c"+ data_string + ".nc"
 
     # Only variables listed will be processed
 
@@ -120,6 +134,9 @@ def main():
     # setup the bool_mask and (lon, lat) mesh of the TES domain
     bool_mask = ~np.isnan(TBOT)
     grid_lon, grid_lat = np.meshgrid(x_dim,y_dim)
+
+    grid_lon = np.around(grid_lon, 4)
+    grid_lat = np.around(grid_lat, 4)
     #lon,lat = Txy2lonlat.transform(grid_x,grid_y)
     lon = grid_lon # save for 1D surfdata
     lat = grid_lat # save for 1D surfdata
