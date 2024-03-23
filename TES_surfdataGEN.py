@@ -24,6 +24,7 @@ def main():
 
     if  len(sys.argv) != 2 or sys.argv[1] == '--help':  # sys.argv includes the script name as the first argument
         print("Example use: python NA_surfdataGEN.py <domain_option>")
+        print("<domain_option: 1 for 1D , and 2 for 2D domain>")
         print(" The code generate 2D NA surfdata from 0.5x0.5 degree globla surfdata")              
         exit(0)
 
@@ -34,10 +35,10 @@ def main():
     date_string = current_date.strftime('%y%m%d')
 
     if (domain_type == '1'):
-        output_file = "surfdata.Daymet_GSWP3_TESSFA.4km.1d.c"+ data_string + ".nc"
+        output_file = "surfdata.Daymet_GSWP3_TESSFA.4km.1d.c"+ date_string + ".nc"
         
     if (domain_type == '2'):
-        output_file = "surfdata.Daymet_GSWP3_TESSFA.4km.2d.c"+ data_string + ".nc"
+        output_file = "surfdata.Daymet_GSWP3_TESSFA.4km.2d.c"+ date_string + ".nc"
 
     # Only variables listed will be processed
 
