@@ -136,8 +136,6 @@ def main():
     bool_mask = ~np.isnan(TBOT)
     grid_lon, grid_lat = np.meshgrid(x_dim,y_dim)
 
-    grid_lon = np.around(grid_lon, 4)
-    grid_lat = np.around(grid_lat, 4)
     #lon,lat = Txy2lonlat.transform(grid_x,grid_y)
     lon = grid_lon # save for 1D surfdata
     lat = grid_lat # save for 1D surfdata
@@ -173,12 +171,12 @@ def main():
     dst.createDimension('lon', x_dim.size)
     dst.createDimension('lat', y_dim.size)
 
-    dst_var = dst.createVariable('lon', np.float32, ('lon'), zlib=True, complevel=5)
+    dst_var = dst.createVariable('lon', np.float64, ('lon'), zlib=True, complevel=5)
     dst_var.units = "degree"
     dst_var.long_name = "x coordinate of projection"
     dst_var.standard_name = "x_project_coordinate"
     dst['lon'][...] = np.copy(x_dim)
-    dst_var = dst.createVariable('lat', np.float32, ('lat'), zlib=True, complevel=5)
+    dst_var = dst.createVariable('lat', np.float64, ('lat'), zlib=True, complevel=5)
     dst_var.units = "degree"
     dst_var.long_name = "y coordinate of projection"
     dst_var.standard_name = "projection_y_coordinate"
@@ -195,12 +193,12 @@ def main():
     dst_var.inverse_flattening = 298.257223563'''
 
     if (domain_type == '1'):
-        dst_var = dst.createVariable('lon2D', np.float32, ('lat','lon'), zlib=True, complevel=5)
+        dst_var = dst.createVariable('lon2D', np.float64, ('lat','lon'), zlib=True, complevel=5)
         dst_var.units = "degrees_east"
         dst_var.long_name = "longitude coordinate"
         dst_var.standard_name = "longitude"
         dst['lon2D'][...] = np.copy(lon)
-        dst_var = dst.createVariable('lat2D', np.float32, ('lat','lon'), zlib=True, complevel=5)
+        dst_var = dst.createVariable('lat2D', np.float64, ('lat','lon'), zlib=True, complevel=5)
         dst_var.units = "degrees_north"
         dst_var.long_name = "latitude coordinate"
         dst_var.standard_name = "latitude"
