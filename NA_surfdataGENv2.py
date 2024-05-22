@@ -82,8 +82,6 @@ def main():
     # linear: "double" variables (added 11/07/22023)
     Variable_linear += ['APATITE_P', 'PCT_CROP']
 
-    # TES domain is defined in WGS84 system, so we do not need projections
-    # But we keep them in the code for src_x, src_y
     #Proj4: +proj=lcc +lon_0=-100 +lat_1=25 +lat_2=60 +k=1 +x_0=0 +y_0=0 +R=6378137 +f=298.257223563 +units=m  +no_defs
     geoxy_proj_str = "+proj=lcc +lon_0=-100 +lat_0=42.5 +lat_1=25 +lat_2=60 +x_0=0 +y_0=0 +R=6378137 +f=298.257223563 +units=m +no_defs"
     geoxyProj = CRS.from_proj4(geoxy_proj_str)
@@ -121,8 +119,6 @@ def main():
 
     # get the fine resolution data and the locations (lat, lon)
     #r_daymet = nc.Dataset('clmforc.Daymet4.1km.TBOT.2014-01.nc', 'r', format='NETCDF4')
-    # TBOT data comes with TES domain information
-    # TES domain is defined in WGS84 coordinates
     r_daymet = nc.Dataset('NA_TBOT.nc', 'r', format='NETCDF4')    
     x_dim = r_daymet['x']  # 1D x-axis
     y_dim = r_daymet['y']  # 1D y-axis
