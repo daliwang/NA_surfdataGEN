@@ -146,8 +146,7 @@ def main():
     grid_lon[grid_lon<0.0]=360+grid_lon[grid_lon<0.0]
 
     print(TBOT.shape,bool_mask.shape, grid_x.shape, grid_x1.shape, gridcells)
-    del grid_x, grid_y
-
+    #   del grid_x, grid_y
 
     # prepare the data source with points_in_daymet_land
     idxy = np.nonzero((src_lat<=max(grid_lat)+src_resy) & (src_lat>=min(grid_lat)-src_resy) & \
