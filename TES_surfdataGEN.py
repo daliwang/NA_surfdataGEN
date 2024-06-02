@@ -23,7 +23,7 @@ def main():
     domain_type = args[0]
 
     if  len(sys.argv) != 2 or sys.argv[1] == '--help':  # sys.argv includes the script name as the first argument
-        print("Example use: python NA_surfdataGEN.py <domain_option>")
+        print("Example use: python TES_surfdataGEN.py <domain_option>")
         print("<domain_option: 1 for 1D , and 2 for 2D domain>")
         print(" The code generate 2D NA surfdata from 0.5x0.5 degree globla surfdata")              
         exit(0)
