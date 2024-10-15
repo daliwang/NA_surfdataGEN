@@ -119,7 +119,7 @@ def main():
 
     # get the fine resolution data and the locations (lat, lon)
     #r_daymet = nc.Dataset('clmforc.Daymet4.1km.TBOT.2014-01.nc', 'r', format='NETCDF4')
-    r_daymet = nc.Dataset('NA_TBOT.nc', 'r', format='NETCDF4')    
+    r_daymet = nc.Dataset('NA_TBOT.nc', 'r', format='NETCDF3_64BIT_DATA')    
     x_dim = r_daymet['x']  # 1D x-axis
     y_dim = r_daymet['y']  # 1D y-axis
     TBOT = r_daymet.variables['TBOT'][0,:,:]
@@ -171,12 +171,12 @@ def main():
     dst.createDimension('lon', x_dim.size)
     dst.createDimension('lat', y_dim.size)
 
-    dst_var = dst.createVariable('lon', np.float64, ('lon'), zlib=True, complevel=5)
+    dst_var = dst.createVariable('lon', np.float64, ('lon'))
     dst_var.units = "degree"
     dst_var.long_name = "x coordinate of projection"
     dst_var.standard_name = "x_project_coordinate"
     dst['lon'][...] = np.copy(x_dim)
-    dst_var = dst.createVariable('lat', np.float64, ('lat'), zlib=True, complevel=5)
+    dst_var = dst.createVariable('lat', np.float64, ('lat'))
     dst_var.units = "degree"
     dst_var.long_name = "y coordinate of projection"
     dst_var.standard_name = "projection_y_coordinate"
@@ -193,12 +193,12 @@ def main():
     dst_var.inverse_flattening = 298.257223563'''
 
     if (domain_type == '1'):
-        dst_var = dst.createVariable('lon2D', np.float64, ('lat','lon'), zlib=True, complevel=5)
+        dst_var = dst.createVariable('lon2D', np.float64, ('lat','lon'))
         dst_var.units = "degrees_east"
         dst_var.long_name = "longitude coordinate"
         dst_var.standard_name = "longitude"
         dst['lon2D'][...] = np.copy(lon)
-        dst_var = dst.createVariable('lat2D', np.float64, ('lat','lon'), zlib=True, complevel=5)
+        dst_var = dst.createVariable('lat2D', np.float64, ('lat','lon'))
         dst_var.units = "degrees_north"
         dst_var.long_name = "latitude coordinate"
         dst_var.standard_name = "latitude"
@@ -206,32 +206,32 @@ def main():
 
         dst.createDimension('gridcell', gridcells)
         
-        dst_var = dst.createVariable('gridID', np.int32, ('gridcell'), zlib=True, complevel=5)
+        dst_var = dst.createVariable('gridID', np.int32, ('gridcell'))
         dst_var.long_name = 'gridId in the NA domain'
         dst_var.decription = "start from #0 at the upper left corner of the domain, covering all land and ocean gridcells" 
         dst['gridID'][...] = np.copy(grid_ids[bool_mask])
 
-        dst_var = dst.createVariable('gridXID', np.int32, ('gridcell'), zlib=True, complevel=5)
+        dst_var = dst.createVariable('gridXID', np.int32, ('gridcell'))
         dst_var.long_name = 'gridId x in the NA domain'
         dst_var.decription = "start from #0 at the upper left corner and from west to east of the domain, with gridID=gridXID+gridYID*x_dim" 
         dst.variables['gridXID'][...] = np.copy(grid_xids[bool_mask])
     
-        dst_var = dst.createVariable('gridYID', np.int32, ('gridcell'), zlib=True, complevel=5)
+        dst_var = dst.createVariable('gridYID', np.int32, ('gridcell'))
         dst_var.long_name = 'gridId y in the NA domain'
         dst_var.decription = "start from #0 at the upper left corner and from north to south of the domain, with gridID=gridXID+gridYID*y_dim" 
         dst.variables['gridYID'][...] = np.copy(grid_yids[bool_mask])
     else:
-        dst_var = dst.createVariable('gridID', np.int32, ('lat','lon'), zlib=True, complevel=5)
+        dst_var = dst.createVariable('gridID', np.int32, ('lat','lon'))
         dst_var.long_name = 'gridId in the NA domain'
         dst_var.decription = "start from #0 at the upper left corner of the domain, covering all land and ocean gridcells" 
         dst.variables['gridID'][...] = np.copy(grid_ids)
     
-        dst_var = dst.createVariable('gridXID', np.int32, ('lat','lon'), zlib=True, complevel=5)
+        dst_var = dst.createVariable('gridXID', np.int32, ('lat','lon'))
         dst_var.long_name = 'gridId x in the NA domain'
         dst_var.decription = "start from #0 at the upper left corner and from west to east of the domain, with gridID=gridXID+gridYID*x_dim" 
         dst.variables['gridXID'][...] = np.copy(grid_xids)
     
-        dst_var = dst.createVariable('gridYID', np.int32, ('lat','lon'), zlib=True, complevel=5)
+        dst_var = dst.createVariable('gridYID', np.int32, ('lat','lon'))
         dst_var.long_name = 'gridId y in the NA domain'
         dst_var.decription = "start from #0 at the upper left corner and from north to south of the domain, with gridID=gridXID+gridYID*y_dim" 
         dst.variables['gridYID'][...] = np.copy(grid_yids)
@@ -262,9 +262,9 @@ def main():
                 fill_value = np.nan
 
             if (domain_type =='1'):
-                x = dst.createVariable(name, variable.datatype, variable.dimensions[:-2]+ ('gridcell',), fill_value = fill_value, zlib=True, complevel=5)
+                x = dst.createVariable(name, variable.datatype, variable.dimensions[:-2]+ ('gridcell',), fill_value = fill_value)
             else:
-                x = dst.createVariable(name, variable.datatype, variable.dimensions[:-2]+ ('lat', 'lon'), fill_value = fill_value, zlib=True, complevel=5)
+                x = dst.createVariable(name, variable.datatype, variable.dimensions[:-2]+ ('lat', 'lon'), fill_value = fill_value)
                 
 	    # Copy variable attributes
             dst[name].setncatts(src[name].__dict__)
@@ -371,7 +371,7 @@ def main():
         else:
 
             # keep variables with the same dimension
-            xerr = dst.createVariable(name, variable.datatype, variable.dimensions, zlib=True, complevel=5)
+            xerr = dst.createVariable(name, variable.datatype, variable.dimensions)
             # Copy variable attributes
             dst[name].setncatts(src[name].__dict__)
             # Copy the data
