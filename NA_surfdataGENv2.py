@@ -1,4 +1,4 @@
-import sys
+import sys, os
 import netCDF4 as nc
 from scipy.interpolate import griddata
 import numpy as np
@@ -8,25 +8,40 @@ from time import process_time
 from pyproj import Proj
 from pyproj import Transformer
 from pyproj import CRS
+import datetime
+
+# Get current date
+current_date = datetime.datetime.now()
+
+# Format date as yymmdd
+date_string = current_date.strftime('%y%m%d')
+
 
 
 def main():
     args = sys.argv[1:]
-    user_option = args[0]
-
+   # domain_type = args[0]
+    domain_type = "1"
+    
     if  len(sys.argv) != 2 or sys.argv[1] == '--help':  # sys.argv includes the script name as the first argument
-        print("Example use: python NA_surfdataGEN.py <option>")
-        print(" <input_path>: path to the 1D source data directory")
-        print(" <1>:  first part of the surfdata")
-        print(" <2>:  second part of the surfdata)")
-        print(" <all>:  complete list of the surfdata)")
-        print(" The code generate 2D NA surfdata from 0.5x0.5 degree globla surfdata")              
+        print("Example use: python NA_surfdataGEN.py <domain_option>")
+        print("<domain_option: 1 for 1D , and 2 for 2D domain>")
+        print(" The code generate 1D or 2D NA surfdata from 0.5x0.5 degree globla surfdata")              
         exit(0)
 
-    UNSTRUCTURED=True   # 1D
-    #UNSTRUCTURED=False  # 2D
+    # Get current date
+    current_date = datetime.datetime.now()
 
-    # Only wariables listed will be processed
+    # Format date as yymmdd
+    date_string = current_date.strftime('%y%m%d')
+
+    if (domain_type == '1'):
+        output_file = "surfdata.Daymet_NA.1km.1d.c"+ date_string + ".nc"
+        
+    if (domain_type == '2'):
+        output_file = "surfdata.Daymet_NA.1km.2d.c"+ date_string + ".nc"
+
+    # Only variables listed will be processed
 
     # nearest neighbor:"double" variables
     Variable_nearest = ['SLOPE', 'TOPO', 'PCT_GLACIER', 'PCT_LAKE', 'STD_ELEV']
@@ -34,23 +49,19 @@ def main():
     Variable_nearest += ['PFTDATA_MASK','SOIL_COLOR', 'SOIL_ORDER', 'abm']
     # nearest neighbor:"double" variables (added 11/07/22023)
     Variable_nearest += ['EF1_BTR', 'EF1_CRP', 'EF1_FDT', 'EF1_FET', 'EF1_GRS', 'EF1_SHR']
-
     # nearest neighbor: "double" variables (added 11/10/2023)
-    #Variable_nearest += ['PCT_SAND', 'PCT_CLAY','ORGANIC' ,'PCT_NAT_PFT', 
-    #        'MONTHLY_LAI', 'MONTHLY_SAI' ,'MONTHLY_HEIGHT_TOP', 'MONTHLY_HEIGHT_BOT']
+    Variable_nearest += ['PCT_SAND', 'PCT_CLAY','ORGANIC' ,'PCT_NAT_PFT', 
+            'MONTHLY_LAI', 'MONTHLY_SAI' ,'MONTHLY_HEIGHT_TOP', 'MONTHLY_HEIGHT_BOT']
 
     # nearest neighbor:"int" variables (gridcell)
     Variable_urban_nearest = ['URBAN_REGION_ID']
-
     # nearest neighbor:"int" variables (numurbl, gridcell)
     Variable_urban_nearest += ['NLEV_IMPROAD' ]
-
     # nearest neighbor:"double" variables (numurbl, gridcell)
     Variable_urban_nearest += ['T_BUILDING_MAX', 'T_BUILDING_MIN',
             'WIND_HGT_CANYON','WTLUNIT_ROOF','WTROAD_PERV','THICK_ROOF',
             'THICK_WALL','PCT_URBAN','HT_ROOF','EM_IMPROAD','EM_PERROAD',
             'EM_ROOF','EM_WALL','CANYON_HWR']
-
     # nearest neighbor:"double" variables (nlevurb, numurbl, gridcell)
     Variable_urban_nearest += ['TK_IMPROAD','TK_ROOF','TK_WALL', 
                                      'CV_IMPROAD', 'CV_ROOF', 'CV_WALL']
@@ -62,25 +73,16 @@ def main():
 
     Variable_nearest += Variable_urban_nearest
 
-    # linear intrepolation of "double" variables
+    # linear interpolation of "double" variables
     Variable_linear = ['FMAX', 'Ws', 'ZWT0', 'binfl', 'gdp', 
                     'peatf', 'Ds', 'Dsmax', 'F0', 'LAKEDEPTH',
                    'LANDFRAC_PFT','P3', 'PCT_NATVEG', 'PCT_WETLAND', 
                     'SECONDARY_P', 'OCCLUDED_P', 'LABILE_P']
 
-    # linear:"double" variables (added 11/07/22023)
+    # linear: "double" variables (added 11/07/22023)
     Variable_linear += ['APATITE_P', 'PCT_CROP']
 
-    if user_option == 2:
-        Variable_nearest = ['PCT_SAND', 'PCT_CLAY','ORGANIC' ,'PCT_NAT_PFT', 
-        'MONTHLY_LAI', 'MONTHLY_SAI' ,'MONTHLY_HEIGHT_TOP', 'MONTHLY_HEIGHT_BOT']
-        Variable_linear = []
-
-    if user_option == 'all':
-         Variable_nearest += ['PCT_SAND', 'PCT_CLAY','ORGANIC' ,'PCT_NAT_PFT', 
-        'MONTHLY_LAI', 'MONTHLY_SAI' ,'MONTHLY_HEIGHT_TOP', 'MONTHLY_HEIGHT_BOT']
-       
-   #Proj4: +proj=lcc +lon_0=-100 +lat_1=25 +lat_2=60 +k=1 +x_0=0 +y_0=0 +R=6378137 +f=298.257223563 +units=m  +no_defs
+    #Proj4: +proj=lcc +lon_0=-100 +lat_1=25 +lat_2=60 +k=1 +x_0=0 +y_0=0 +R=6378137 +f=298.257223563 +units=m  +no_defs
     geoxy_proj_str = "+proj=lcc +lon_0=-100 +lat_0=42.5 +lat_1=25 +lat_2=60 +x_0=0 +y_0=0 +R=6378137 +f=298.257223563 +units=m +no_defs"
     geoxyProj = CRS.from_proj4(geoxy_proj_str)
     # EPSG: 4326
@@ -100,16 +102,11 @@ def main():
     src_lon[src_lon<0.0]=360+src_lon[src_lon<0.0]
     
     
-    # Create a new file
-    if user_option == '1':
-        output_file = "hr_surfdata_v1_part1.nc"
-    if user_option == '2':
-        output_file = "hr_surfdata_v1_part2.nc"
-    if user_option == 'all':
-        output_file = "surfdata_Daymet4.1km.2d.v1.nc"
-        if UNSTRUCTURED:
-            output_file = "surfdata_Daymet4.1km.1d.v1.nc"
-
+    # Create a new file      
+    if os.path.isfile(output_file):
+        # If it does, delete it
+        os.remove(output_file)
+        
     dst = nc.Dataset(output_file, 'w')
 
     # Copy dimensions
@@ -121,7 +118,8 @@ def main():
     dst.setncatts(src.__dict__)
 
     # get the fine resolution data and the locations (lat, lon)
-    r_daymet = nc.Dataset('clmforc.Daymet4.1km.TBOT.2014-01.nc', 'r', format='NETCDF4')
+    #r_daymet = nc.Dataset('clmforc.Daymet4.1km.TBOT.2014-01.nc', 'r', format='NETCDF4')
+    r_daymet = nc.Dataset('NA_TBOT.nc', 'r', format='NETCDF3_64BIT_DATA')    
     x_dim = r_daymet['x']  # 1D x-axis
     y_dim = r_daymet['y']  # 1D y-axis
     TBOT = r_daymet.variables['TBOT'][0,:,:]
@@ -131,7 +129,7 @@ def main():
     grid_xids = np.indices(grid_ids.shape)[1]
     grid_yids = np.indices(grid_ids.shape)[0]
 
-    # setup the bool_mask and XY mesh of the Daymet domain
+    # setup the bool_mask and XY mesh of the Daymet_NA domain
     bool_mask = ~np.isnan(TBOT)
     grid_x, grid_y = np.meshgrid(x_dim,y_dim)
     lon,lat = Txy2lonlat.transform(grid_x,grid_y)
@@ -143,14 +141,20 @@ def main():
 
     # masked daymet gridcell's lon/lat
     grid_lon,grid_lat = Txy2lonlat.transform(grid_x1,grid_y1)
-    grid_lon[grid_lon<0.0]=360+grid_lon[grid_lon<0.0]
+    #grid_lon[grid_lon<0.0]=360+grid_lon[grid_lon<0.0]
 
-    print(TBOT.shape,bool_mask.shape, grid_x.shape, grid_x1.shape, gridcells)
-    #   del grid_x, grid_y
+    print(TBOT.shape,bool_mask.shape, grid_x.shape, grid_x1.shape, gridcells, src_x.shape)
+    #del grid_x, grid_y
 
-    # prepare the data source with points_in_daymet_land
-    idxy = np.nonzero((src_lat<=max(grid_lat)+src_resy) & (src_lat>=min(grid_lat)-src_resy) & \
-                      (src_lon<=max(grid_lon)+src_resx) & (src_lon>=min(grid_lon)-src_resx) )
+    
+    # prepare the data source with points_in_daymet_land  (witn lon, lat)
+    #idxy = np.nonzero((src_lat<=max(grid_lat)+src_resy) & (src_lat>=min(grid_lat)-src_resy) & \
+    #                  (src_lon<=max(grid_lon)+src_resx) & (src_lon>=min(grid_lon)-src_resx) )
+    
+    # prepare the data source with points_in_daymet_land  (witn x, y)
+    idxy = np.nonzero(( src_x <= (np.amax(grid_x) + 500) ) & ( src_x >= (np.amin(grid_x) - 500 )) & \
+                      ( src_y <= (np.amax(grid_y) + 500) ) & ( src_y >= (np.amin(grid_y) - 500 )) )
+
     points_in_daymet_land = {}
     points_in_daymet_land[0] = src_x[idxy]
     points_in_daymet_land[1] = src_y[idxy]
@@ -163,22 +167,22 @@ def main():
     points[:,0] = src_y[idxy]
     points[:,1] = src_x[idxy]
 
-    # Create new dimensions
-    dst.createDimension('x_dim', x_dim.size)
-    dst.createDimension('y_dim', y_dim.size)
+    # Create new dimensions for TES domain
+    dst.createDimension('lon', x_dim.size)
+    dst.createDimension('lat', y_dim.size)
 
-    dst_var = dst.createVariable('x_dim', np.float32, ('x_dim'))
-    dst_var.units = "m"
+    dst_var = dst.createVariable('lon', np.float64, ('lon'))
+    dst_var.units = "degree"
     dst_var.long_name = "x coordinate of projection"
-    dst_var.standard_name = "projection_x_coordinate"
-    dst['x_dim'][...] = np.copy(x_dim)
-    dst_var = dst.createVariable('y_dim', np.float32, ('y_dim'))
-    dst_var.units = "m"
+    dst_var.standard_name = "x_project_coordinate"
+    dst['lon'][...] = np.copy(x_dim)
+    dst_var = dst.createVariable('lat', np.float64, ('lat'))
+    dst_var.units = "degree"
     dst_var.long_name = "y coordinate of projection"
     dst_var.standard_name = "projection_y_coordinate"
-    dst['y_dim'][...] = np.copy(y_dim)
+    dst['lat'][...] = np.copy(y_dim)
 
-    dst_var = dst.createVariable('lambert_conformal_conic', np.short)
+    '''dst_var = dst.createVariable('lambert_conformal_conic', np.short)
     dst_var.grid_mapping_name = "lambert_conformal_conic"
     dst_var.longitude_of_central_meridian = -100.
     dst_var.latitude_of_projection_origin = 42.5
@@ -186,19 +190,19 @@ def main():
     dst_var.false_northing = 0.
     dst_var.standard_parallel = 25., 60.
     dst_var.semi_major_axis = 6378137.
-    dst_var.inverse_flattening = 298.257223563
+    dst_var.inverse_flattening = 298.257223563'''
 
-    if UNSTRUCTURED:
-        dst_var = dst.createVariable('lon', np.float32, ('y_dim','x_dim'))
+    if (domain_type == '1'):
+        dst_var = dst.createVariable('lon2D', np.float64, ('lat','lon'))
         dst_var.units = "degrees_east"
         dst_var.long_name = "longitude coordinate"
         dst_var.standard_name = "longitude"
-        dst['lon'][...] = np.copy(lon)
-        dst_var = dst.createVariable('lat', np.float32, ('y_dim','x_dim'))
+        dst['lon2D'][...] = np.copy(lon)
+        dst_var = dst.createVariable('lat2D', np.float64, ('lat','lon'))
         dst_var.units = "degrees_north"
         dst_var.long_name = "latitude coordinate"
         dst_var.standard_name = "latitude"
-        dst['lat'][...] = np.copy(lat)
+        dst['lat2D'][...] = np.copy(lat)
 
         dst.createDimension('gridcell', gridcells)
         
@@ -217,17 +221,17 @@ def main():
         dst_var.decription = "start from #0 at the upper left corner and from north to south of the domain, with gridID=gridXID+gridYID*y_dim" 
         dst.variables['gridYID'][...] = np.copy(grid_yids[bool_mask])
     else:
-        dst_var = dst.createVariable('gridID', np.int32, ('y_dim','x_dim'))
+        dst_var = dst.createVariable('gridID', np.int32, ('lat','lon'))
         dst_var.long_name = 'gridId in the NA domain'
         dst_var.decription = "start from #0 at the upper left corner of the domain, covering all land and ocean gridcells" 
         dst.variables['gridID'][...] = np.copy(grid_ids)
     
-        dst_var = dst.createVariable('gridXID', np.int32, ('y_dim','x_dim'))
+        dst_var = dst.createVariable('gridXID', np.int32, ('lat','lon'))
         dst_var.long_name = 'gridId x in the NA domain'
         dst_var.decription = "start from #0 at the upper left corner and from west to east of the domain, with gridID=gridXID+gridYID*x_dim" 
         dst.variables['gridXID'][...] = np.copy(grid_xids)
     
-        dst_var = dst.createVariable('gridYID', np.int32, ('y_dim','x_dim'))
+        dst_var = dst.createVariable('gridYID', np.int32, ('lat','lon'))
         dst_var.long_name = 'gridId y in the NA domain'
         dst_var.decription = "start from #0 at the upper left corner and from north to south of the domain, with gridID=gridXID+gridYID*y_dim" 
         dst.variables['gridYID'][...] = np.copy(grid_yids)
@@ -238,7 +242,7 @@ def main():
     # Copy variables
     for name, variable in src.variables.items():
         start = process_time()
-        print("Working on varibale: "+ name + " dimensions: " + str(variable.dimensions))
+        print("Checking on varibale: "+ name + " dimensions: " + str(variable.dimensions))
         
         # Check if the last two dimensions are lsmlat and lsmlon
         if (variable.dimensions[-2:] == ('lsmlat', 'lsmlon')):
@@ -248,6 +252,8 @@ def main():
             else:
                 iMethod = 'nearest'
 
+            print("Working on varibale: "+ name + " dimensions: " + str(variable.dimensions))
+
             # create variables with the new dimensions
 
             if variable.datatype == np.int32:
@@ -255,10 +261,10 @@ def main():
             else:
                 fill_value = np.nan
 
-            if UNSTRUCTURED:
+            if (domain_type =='1'):
                 x = dst.createVariable(name, variable.datatype, variable.dimensions[:-2]+ ('gridcell',), fill_value = fill_value)
             else:
-                x = dst.createVariable(name, variable.datatype, variable.dimensions[:-2]+ ('y_dim', 'x_dim'), fill_value = fill_value)
+                x = dst.createVariable(name, variable.datatype, variable.dimensions[:-2]+ ('lat', 'lon'), fill_value = fill_value)
                 
 	    # Copy variable attributes
             dst[name].setncatts(src[name].__dict__)
@@ -274,17 +280,17 @@ def main():
                 source = src[name][:]
                 o_data = source[points_in_daymet_land[4][:],points_in_daymet_land[5][:]]
                 f_data1 = griddata(points, o_data, (grid_y1, grid_x1), method=iMethod)
-                if name=='AREA': f_data1[...] = 1.0
+                if name=='AREA': f_data1[...] = 1.0  # need to get the AREA value from Domain files
                 if name=='LONGXY': f_data1[...] = grid_lon
                 if name=='LATIXY': f_data1[...] = grid_lat
                 
-                if UNSTRUCTURED:
+                if (domain_type == '1'):
                     # Assign the interpolated data
                     dst[name][...] = np.copy(f_data1)
                     
                 else:
       
-                # put the masked data back to the data (with the daymet land mask
+                # put the masked data back to the data (with the NA land mask
 
                     f_data = np.ma.array(np.empty((len(y_dim),len(x_dim)), dtype=variable.datatype), mask=bool_mask, fill_value=fill_value)
                     f_data =  np.where(f_data.mask, f_data, fill_value)
@@ -308,7 +314,7 @@ def main():
                     o_data = source[points_in_daymet_land[4][:],points_in_daymet_land[5][:]]
                     f_data1 = griddata(points, o_data, (grid_y1, grid_x1), method=iMethod)
                     
-                    if UNSTRUCTURED:
+                    if (domain_type =='1'):
                         # Assign the interpolated data
                         dst[name][index,...] = np.copy(f_data1)
                     else:
@@ -339,7 +345,7 @@ def main():
                         o_data = source[points_in_daymet_land[4][:],points_in_daymet_land[5][:]]
                         
                         f_data1 = griddata(points, o_data, (grid_y1, grid_x1), method=iMethod)                      
-                        if UNSTRUCTURED:
+                        if (domain_type == '1'):
                             # Assign the interpolated data
                             dst[name][index1,index2,...] = np.copy(f_data1)
                         else:
@@ -376,7 +382,7 @@ def main():
             print("Copying variable: " +name+ " takes  {}".format(end-start))
             
         if count > 50:
-            dst.close()   # output the variable into file to save memory
+            dst.close()   # output the variable into a file to save memory
 
             dst = nc.Dataset(output_file, 'a')
 
@@ -390,3 +396,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
