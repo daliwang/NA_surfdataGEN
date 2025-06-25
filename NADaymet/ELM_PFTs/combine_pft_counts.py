@@ -4,9 +4,9 @@ import xarray as xr
 from netCDF4 import Dataset
 
 def extract_pft_variables(file_path):
-    """Extract variables starting with 'pft' from a NetCDF file using xarray."""
+    """Extract variables starting with 'pft' from a NetCDF file using xarray, omitting 'glacier'."""
     with xr.open_dataset(file_path) as ds:
-        return {var: ds[var].values for var in ds.data_vars if var.startswith('pft')}
+        return {var: ds[var].values for var in ds.data_vars if var.startswith('pft') and var != 'glacier_count'}
 
 def main():
     parent_dir = os.getcwd()
@@ -24,6 +24,9 @@ def main():
     for pft_file in pft_files:
         pft_vars = extract_pft_variables(os.path.join(parent_dir, pft_file))
         for var_name, arr in pft_vars.items():
+            # Omit glacier_count if present
+            if var_name == 'glacier_count':
+                continue
             combined_vars.setdefault(var_name, []).append(arr)
     for var_name in combined_vars:
         combined_vars[var_name] = np.stack(combined_vars[var_name], axis=0)

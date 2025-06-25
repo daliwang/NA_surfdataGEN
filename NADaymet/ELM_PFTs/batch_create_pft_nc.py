@@ -43,7 +43,7 @@ landtype_pft_map = [
     # Water (direct)
     ('landtype18_nalcms_Water_in_daymet.nc', ['lake'], False, None),
     # Snow/Ice (direct)
-    ('landtype19_nalcms_Snow_Ice_in_daymet.nc', ['pft0'], False, None),
+    ('landtype19_nalcms_Snow_Ice_in_daymet.nc', ['glacier'], False, None),
 ]
 
 # Path to aligned temperature file (used for all splits)
