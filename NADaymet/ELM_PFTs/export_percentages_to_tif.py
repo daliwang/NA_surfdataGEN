@@ -8,7 +8,7 @@ from netCDF4 import Dataset
 mask_file = 'large_daymet_mask.tif'
 input_nc_files = [
     'ELM_PFT_output/pft_total_count_percentage.nc',
-    'ELM_PFT_output/combined_pft_urban_lake_total_count.nc'
+    'ELM_PFT_output/combined_pft_urban_lake_glacier_total_count.nc'
 ]
 output_dir = 'ELM_PFT_output/tif_exports'
 os.makedirs(output_dir, exist_ok=True)
