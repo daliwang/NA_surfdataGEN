@@ -1,0 +1,27 @@
+\section{Methods}
+
+\subsection{Data and Study Grid}
+We integrated the North American Land Change Monitoring System (NALCMS) categorical land cover (30~m resolution) with the native Daymet analysis grid (1~km spacing) over North America. The Daymet grid was represented by a 1~km raster domain mask (one pixel per Daymet gridcell), hereafter referred to as the Daymet mask.
+
+\subsection{Reprojection and Gridding of NALCMS to Daymet}
+NALCMS rasters were reprojected and aligned to the Daymet grid prior to aggregation. Because land cover is categorical, nearest-neighbor resampling was used to preserve class labels. The target grid's coordinate reference system (CRS), pixel origin, resolution (1~km), and geotransform were matched exactly to the Daymet mask to ensure pixel-for-pixel alignment. No smoothing or averaging was applied at this step.
+
+\subsection{Per-class Separation (Class Masks)}
+To facilitate aggregation, the reprojected NALCMS raster was split into per-class masks. For each of the 19 NALCMS classes (IDs 1--19), a single-band GeoTIFF was written with the same georeferencing as the input and a nodata value of 127. These files follow the pattern \texttt{nalcms\_\textless id\textgreater\_\textless name\textgreater.tif}. Processing was performed in memory-efficient blocks and stored with LZW compression. This step was implemented in Python using Rasterio and NumPy (script: \texttt{nalcms\_seperate\_class\_large.py}).
+
+\subsection{Aggregation from 30 m to the 1 km Daymet Grid}
+For each Daymet gridcell, we counted the number of underlying 30~m pixels belonging to a given class. Gridcell polygons were derived from the Daymet mask geotransform. For a class with ID \(k\) and a Daymet cell indexed by \(i\), the count \(c_{i,k}\) is
+\[
+  c_{i,k} = \sum_{p \in \mathcal{P}_i} \mathbf{1}\{ \text{NALCMS}(p) = k \},
+\]
+where \(\mathcal{P}_i\) is the set of 30~m pixels intersecting the \(i\)-th Daymet cell and \(\mathbf{1}\{\cdot\}\) is the indicator function. This produced one GeoTIFF per class containing integer counts for each 1~km pixel (nodata = \(-1\)). This step was implemented with Rasterio's window/mask operations and Shapely polygon geometry (script: \texttt{NADaymet/entire\_domain/class\_count\_na\_para.py}).
+
+Optional fractions and areas can be derived from the counts: \(f_{i,k} = c_{i,k}/N_i\), where \(N_i\) is the number of valid 30~m pixels in cell \(i\); and \(\text{area}_{i,k} = c_{i,k} \times 900\,\text{m}^2\).
+
+\subsection{Quality Control}
+We validated the per-class masks and counts by scanning rasters in blocks to confirm value encoding and pixel totals. A utility script was used to parse class IDs from filenames and tally pixels equal to the expected class value in each file (script: \texttt{nalcms2daymet\_script/check\_geotiff.py}).
+
+\subsection{Outputs}
+The pipeline yields: (i) per-class NALCMS masks aligned to the Daymet grid (uint8, LZW, nodata=127), and (ii) per-class 1~km count rasters giving the number of 30~m NALCMS pixels per Daymet cell (int16, nodata=\(-1\)). File naming follows the patterns \texttt{nalcms\_\textless id\textgreater\_\textless name\textgreater.tif} and \texttt{landtype\textless id\textgreater\_count\_in\_namask.tif}.
+
+

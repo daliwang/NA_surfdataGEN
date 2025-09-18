@@ -1,0 +1,56 @@
+\section{Methods (NADaymet workflow)}
+
+\subsection{Inputs and Study Grid}
+The workflow operates on a 1~km Daymet grid over North America represented by a Daymet mask raster. Inputs include per-class landtype counts on the Daymet grid (one raster per NALCMS class) and a Daymet-aligned gridded diagnostic of the average temperature of the coldest month (variable \texttt{AvgTemp} in \texttt{aligned\_temp\_to\_large\_nalcms\_mask.nc}). All rasters and NetCDF outputs are aligned to the Daymet CRS, pixel origin, and 1~km resolution.
+
+\subsection{Mapping NALCMS Landtypes to ELM PFTs}
+Each NALCMS landtype class is mapped to one or two ELM plant functional types (PFTs). When a single PFT is targeted (``direct'' case), the landtype count is assigned wholly to that PFT. For transitional classes (``split'' case), counts are partitioned between two PFTs using temperature thresholds.
+
+For a landtype with per-cell count \(C\) and average cold-month temperature \(T\), given lower and upper bounds \((L, U)\), the partition is
+\[
+  \text{if } T \le L:\; C_B = C,\; C_A = 0;\qquad
+  \text{if } T > U:\; C_A = C,\; C_B = 0;\qquad
+  \text{if } L < T \le U:\; f = \frac{T - L}{U - L},\; C_A = \lfloor C f \rfloor,\; C_B = C - C_A,
+\]
+where \(C_A\) and \(C_B\) are the counts assigned to the warmer and colder PFTs, respectively. For equal bounds \(L{=}U\), the ``between'' region is empty and only the two threshold masks apply. Implementation: \texttt{ELM\_PFTs/batch\_create\_pft\_nc.py}.
+
+The script writes one NetCDF file per landtype-to-PFT mapping with dimensions (\texttt{y}, \texttt{x}), integer \texttt{*_count} variables (zlib compression, level 5), and metadata including the original landtype filename. For split cases, \texttt{AvgTemp} is also written to the file and threshold bounds are recorded as global attributes.
+
+\subsection{Combining PFT Counts}
+Individual \texttt{pft*.nc} files are consolidated by stacking variables that end with \texttt{\_count} and summing across files, preserving a singleton ``file'' dimension when appropriate. Negative source values are treated as fill (set to \(-1\)). The combined dataset is saved as \texttt{ELM\_PFT\_output/combined\_pft\_count.nc} with CF-style attributes. Implementation: \texttt{ELM\_PFTs/combine\_pft\_counts.py}.
+
+\subsection{PFT Totals and Percentages}
+From combined counts, we compute a per-cell total count and per-PFT percentages:
+\[
+  C_{\text{tot}} = \sum_j C_j,\qquad P_j = \begin{cases}
+  100\, C_j / C_{\text{tot}}, & C_{\text{tot}} > 0,\\
+  \text{NaN}, & C_{\text{tot}} \le 0~(\text{non-land}).
+  \end{cases}
+\]
+These are stored in \texttt{ELM\_PFT\_output/pft\_total\_count\_percentage.nc} as integer totals and float percentages (NaN fill). Implementation: \texttt{ELM\_PFTs/pft\_total\_count\_percentage.py}.
+
+\subsection{Integration with Urban, Lake, and Glacier}
+We merge PFT totals with urban (landtype 17), lake (18), and glacier (19) counts to form a grand total and class percentages as:
+\[
+  C_{\text{Total}} = C_{\text{PFT}} + C_{\text{urban}} + C_{\text{lake}} + C_{\text{glacier}},\qquad
+  P_{\cdot} = 100\, C_{\cdot} / C_{\text{Total}}\; (C_{\text{Total}} > 0) .
+\]
+We also compute a land fraction (percent of 1~km cell covered by valid 30~m pixels) as
+\[
+  F_{\text{land}} = \begin{cases}
+    100, & C_{\text{Total}} \ge 1089,\\
+    100\, C_{\text{Total}}/1156, & 0 \le C_{\text{Total}} < 1089,\\
+    \text{NaN}, & C_{\text{Total}} < 0~(\text{non-land}).
+  \end{cases}
+\]
+Thresholds 1089 and 1156 correspond to nominal pixel counts for 33×33 and 34×34 30~m pixels per 1~km cell, respectively. Output is \texttt{ELM\_PFT\_output/combined\_pft\_urban\_lake\_glacier\_total\_count.nc}. Implementation: \texttt{ELM\_PFTs/pft\_urban\_lake\_glacier\_percentage.py}.
+
+\subsection{GeoTIFF Exports}
+Gridded diagnostics (percentages/fractions) are exported to GeoTIFF using the georeference of the Daymet mask (\texttt{large\_daymet\_mask.tif}). Arrays are resized if necessary via bilinear resampling, masked to land (mask==1), and written as single-band Float32 with nodata \(-9999). Implementation: \texttt{ELM\_PFTs/export\_percentages\_to\_tif.py}.
+
+Additionally, \texttt{AvgTemp} is exported to GeoTIFF aligned to the same mask and nodata conventions. Implementation: \texttt{ELM\_PFTs/export\_avgtemp\_to\_tif.py}.
+
+\subsection{Data Types, Conventions, and Alignment}
+All NetCDF outputs follow CF-1.6-style metadata with compressed variables (zlib level 5). Counts are stored as signed 16-bit integers; percentage and fraction fields as 32-bit floats with NaN fill. All rasters/NetCDF arrays share the Daymet grid CRS, affine transform, pixel origin, and 1~km spacing to ensure pixel-level consistency across products.
+
+
