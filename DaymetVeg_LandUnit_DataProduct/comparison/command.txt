@@ -1,0 +1,5 @@
+python /gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/comparison/compare_pct_urban.py --vars PCT_LAKE PCT_GLACIER PCT_NATVEG PCT_NAT_PFT --scale fixed --map-min 0 --map-max 100 --diff-lim 100
+
+python /gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/comparison/compare_pct_urban.py --vars PCT_URBAN --scale fixed --map-min 0 --map-max 100 --diff-lim 100
+
+python /gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/comparison/plot_original_global_pct_lake.py --scale fixed --map-min 0 --map-max 100
