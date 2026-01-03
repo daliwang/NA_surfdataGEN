@@ -2,5 +2,9 @@
 *.nc
 *.tif
 *.tiff
+*.txt
+*.err
+*.out
+
 
 
