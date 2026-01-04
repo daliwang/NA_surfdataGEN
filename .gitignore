@@ -1,0 +1,6 @@
+*.png
+*.nc
+*.tif
+*.tiff
+DaymetVeg_LandUnit_DataProduct/comparison/*.txt
+
