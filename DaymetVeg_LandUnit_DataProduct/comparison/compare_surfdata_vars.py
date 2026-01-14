@@ -42,7 +42,7 @@ def load_dataset(path: Path) -> xr.Dataset:
 def get_lat_lon_from_ds(ds: xr.Dataset):
     # Prefer LATIXY/LONGXY if present, otherwise try common fallbacks
     lat_candidates = ["LATIXY", "lat", "latitude", "LAT"]
-    lon_candidates = ["LONGXY", "lon", "longitude", "LON"]
+    lon_candidates = ["LONGXY", "LONG", "lon", "longitude", "LON"]
     lat_da = None
     lon_da = None
     for name in lat_candidates:
@@ -62,6 +62,80 @@ def get_lat_lon_from_ds(ds: xr.Dataset):
     if lat_da is None or lon_da is None:
         raise ValueError("Could not find latitude/longitude variables in dataset.")
     return lat_da.values, lon_da.values
+
+
+def get_xy_grid_from_ds(ds: xr.Dataset):
+    """
+    Return 2D x/y grids for plotting if available.
+    Accepts either 1D x/y coords (creates meshgrid) or existing 2D x/y variables.
+    """
+    x_da = None
+    y_da = None
+    # Prefer coords over variables
+    for name in ["x", "X", "xc", "XC"]:
+        if name in ds.coords:
+            x_da = ds.coords[name]
+            break
+        if name in ds.variables:
+            x_da = ds[name]
+            break
+    for name in ["y", "Y", "yc", "YC"]:
+        if name in ds.coords:
+            y_da = ds.coords[name]
+            break
+        if name in ds.variables:
+            y_da = ds[name]
+            break
+    # Fallback: some files store projected axes in lon/lat 1D coords
+    if x_da is None or y_da is None:
+        lon_1d = ds.coords.get("lon", ds.variables.get("lon"))
+        lat_1d = ds.coords.get("lat", ds.variables.get("lat"))
+        if lon_1d is not None and lat_1d is not None:
+            try:
+                if lon_1d.ndim == 1 and lat_1d.ndim == 1:
+                    x_da = lon_1d
+                    y_da = lat_1d
+            except Exception:
+                pass
+    if x_da is None or y_da is None:
+        return None, None
+    x_val = np.asarray(x_da.values)
+    y_val = np.asarray(y_da.values)
+    if x_val.ndim == 1 and y_val.ndim == 1:
+        # Create a 2D grid in the natural plotting order (rows: y, cols: x)
+        xg, yg = np.meshgrid(x_val, y_val, indexing="xy")
+        return xg, yg
+    if x_val.ndim == 2 and y_val.ndim == 2:
+        return x_val, y_val
+    # Mixed dimensionality (fallback: try to meshgrid if one is 1D)
+    if x_val.ndim == 1 and y_val.ndim == 2 and y_val.shape[1] == x_val.size:
+        xg = np.tile(x_val[np.newaxis, :], (y_val.shape[0], 1))
+        return xg, y_val
+    if y_val.ndim == 1 and x_val.ndim == 2 and x_val.shape[0] == y_val.size:
+        yg = np.tile(y_val[:, np.newaxis], (1, x_val.shape[1]))
+        return x_val, yg
+    return None, None
+
+
+def get_plot_grid_from_ds(ds: xr.Dataset, mode: str):
+    """
+    Determine plotting grid and its kind:
+    - If mode == 'xy': use x/y if available, else fall back to lon/lat.
+    - If mode == 'lonlat': use lon/lat.
+    - If mode == 'auto': prefer x/y if available, else lon/lat.
+    Returns (X2D, Y2D, kind) where kind in {'xy', 'lonlat'}.
+    """
+    if mode in ("xy", "auto"):
+        xg, yg = get_xy_grid_from_ds(ds)
+        if xg is not None and yg is not None:
+            return xg, yg, "xy"
+        if mode == "xy":
+            # Fall back if forced xy not available
+            lat, lon = get_lat_lon_from_ds(ds)
+            return lon, lat, "lonlat"
+    # lon/lat path
+    lat, lon = get_lat_lon_from_ds(ds)
+    return lon, lat, "lonlat"
 
 
 def nearest_regrid_to_target(lat_src, lon_src, data_src, lat_tgt, lon_tgt):
@@ -114,36 +188,36 @@ def downsample_for_plot(x, y, z, max_points=1_000_000):
     return x[::stride_y, ::stride_x], y[::stride_y, ::stride_x], z[::stride_y, ::stride_x]
 
 
-def prepare_imshow(z, lon_grid, lat_grid):
+def prepare_imshow(z, x_grid, y_grid):
     """
     Prepare array and parameters for imshow:
-    - Flip left/right if longitude decreases from left to right
-    - Choose origin='upper' if latitude decreases from top row to bottom row
-    - Compute extent from lon/lat
+    - Flip left/right if x decreases from left to right
+    - Choose origin='upper' if y decreases from top row to bottom row
+    - Compute extent from x/y
     """
-    lon = lon_grid
-    lat = lat_grid
+    xg = x_grid
+    yg = y_grid
     z_plot = z
     # Horizontal orientation (left to right)
     try:
-        lon_left = np.nanmean(lon[:, 0])
-        lon_right = np.nanmean(lon[:, -1])
-        if np.isfinite(lon_left) and np.isfinite(lon_right) and lon_left > lon_right:
+        x_left = np.nanmean(xg[:, 0])
+        x_right = np.nanmean(xg[:, -1])
+        if np.isfinite(x_left) and np.isfinite(x_right) and x_left > x_right:
             z_plot = np.fliplr(z_plot)
-            lon = np.fliplr(lon)
+            xg = np.fliplr(xg)
     except Exception:
         pass
     # Vertical orientation (top to bottom)
     origin = "lower"
     try:
-        lat_top = np.nanmean(lat[0, :])
-        lat_bottom = np.nanmean(lat[-1, :])
-        if np.isfinite(lat_top) and np.isfinite(lat_bottom) and lat_top > lat_bottom:
+        y_top = np.nanmean(yg[0, :])
+        y_bottom = np.nanmean(yg[-1, :])
+        if np.isfinite(y_top) and np.isfinite(y_bottom) and y_top > y_bottom:
             origin = "upper"
     except Exception:
         origin = "lower"
     # Extent
-    extent = [float(np.nanmin(lon)), float(np.nanmax(lon)), float(np.nanmin(lat)), float(np.nanmax(lat))]
+    extent = [float(np.nanmin(xg)), float(np.nanmax(xg)), float(np.nanmin(yg)), float(np.nanmax(yg))]
     return z_plot, extent, origin
 
 def make_cmap(name: str):
@@ -169,6 +243,8 @@ def main():
                         help="Start index (inclusive) for natpft layers when plotting PCT_NAT_PFT. Default: 0.")
     parser.add_argument("--pft-end", type=int, default=None,
                         help="End index (inclusive) for natpft layers when plotting PCT_NAT_PFT. Default: last.")
+    parser.add_argument("--plot-coords", choices=["auto", "xy", "lonlat"], default="auto",
+                        help="Which coordinates to use for plotting: 'xy' (projected), 'lonlat', or 'auto' (prefer 'xy' if available).")
     args = parser.parse_args()
 
     comparison_dir = Path("/gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/comparison")
@@ -189,9 +265,18 @@ def main():
     latB, lonB = get_lat_lon_from_ds(dsB)
     latC, lonC = get_lat_lon_from_ds(dsC)
 
+    # Determine plotting grids for B and C (prefer x/y when available or requested)
+    xB_grid, yB_grid, kindB = get_plot_grid_from_ds(dsB, args.plot_coords)
+    xC_grid, yC_grid, kindC = get_plot_grid_from_ds(dsC, args.plot_coords)
+
     # Helpers for generic variable processing
     def compute_stats_and_plots(var_name: str, daA: xr.DataArray, daB: xr.DataArray, daC: xr.DataArray,
-                                suffix: str = "", per_layer_label: str | None = None):
+                                suffix: str = "", per_layer_label: str | None = None,
+                                vmin_override: float | None = None, vmax_override: float | None = None,
+                                diff_lim_override: float | None = None,
+                                xB_plot_grid: np.ndarray | None = None, yB_plot_grid: np.ndarray | None = None,
+                                xC_plot_grid: np.ndarray | None = None, yC_plot_grid: np.ndarray | None = None,
+                                kindB_override: str | None = None, kindC_override: str | None = None):
         # Regrid A -> B grid
         A_on_B = nearest_regrid_to_target(latA, lonA, daA.values, latB, lonB)
         # Masks
@@ -233,27 +318,40 @@ def main():
             f.write(f"  count={stats_C_minus_A['count']}, mean_A={stats_C_minus_A['mean_a']:.4f}, mean_C={stats_C_minus_A['mean_b']:.4f}, rmse={stats_C_minus_A['rmse']:.4f}, corr={stats_C_minus_A['corr']:.4f}\n")
             f.write("C (NALCMS 1km) vs B (Daymet 1km):\n")
             f.write(f"  count={stats_C_minus_B['count']}, mean_B={stats_C_minus_B['mean_a']:.4f}, mean_C={stats_C_minus_B['mean_b']:.4f}, rmse={stats_C_minus_B['rmse']:.4f}, corr={stats_C_minus_B['corr']:.4f}\n")
+        # Choose plotting grids (allow overrides)
+        xB_used = xB_plot_grid if xB_plot_grid is not None else xB_grid
+        yB_used = yB_plot_grid if yB_plot_grid is not None else yB_grid
+        xC_used = xC_plot_grid if xC_plot_grid is not None else xC_grid
+        yC_used = yC_plot_grid if yC_plot_grid is not None else yC_grid
+        kindB_used = kindB_override if kindB_override is not None else kindB
+        kindC_used = kindC_override if kindC_override is not None else kindC
         # Downsample for plotting
-        xB, yB, AonB_plot = downsample_for_plot(lonB, latB, A_on_B)
-        _, _, B_plot = downsample_for_plot(lonB, latB, daB.values)
-        xC, yC, C_plot = downsample_for_plot(lonC, latC, daC.values)
+        xB_ds, yB_ds, AonB_plot = downsample_for_plot(xB_used, yB_used, A_on_B)
+        _, _, B_plot = downsample_for_plot(xB_used, yB_used, daB.values)
+        xC_ds, yC_ds, C_plot = downsample_for_plot(xC_used, yC_used, daC.values)
+        # Build domain masks from lon/lat finiteness to avoid plotting outside domain (even if values are zeros)
+        lonB_ds, latB_ds, _ = downsample_for_plot(lonB, latB, A_on_B)
+        lonC_ds, latC_ds, _ = downsample_for_plot(lonC, latC, daC.values)
+        maskB_domain = np.isfinite(lonB_ds) & np.isfinite(latB_ds)
+        maskC_domain = np.isfinite(lonC_ds) & np.isfinite(latC_ds)
         # Color limits
-        if args.scale == "robust":
+        if vmin_override is not None and vmax_override is not None:
+            vmin = vmin_override
+            vmax = vmax_override
+        elif args.scale == "robust":
             vmin = float(np.nanpercentile(np.concatenate([AonB_plot.ravel(), B_plot.ravel(), C_plot.ravel()]), 2))
             vmax = float(np.nanpercentile(np.concatenate([AonB_plot.ravel(), B_plot.ravel(), C_plot.ravel()]), 98))
         else:
             vmin = args.map_min
             vmax = args.map_max
         # Orientation
-        AonB_plot_oriented, extent_B, origin_B = prepare_imshow(AonB_plot, xB, yB)
-        B_plot_oriented, _, _ = prepare_imshow(B_plot, xB, yB)
-        C_plot_oriented, extent_C, origin_C = prepare_imshow(C_plot, xC, yC)
-        # Build domain masks from lon/lat finiteness to avoid plotting outside domain (even if values are zeros)
-        maskB = np.isfinite(xB) & np.isfinite(yB)
-        maskB_oriented, _, _ = prepare_imshow(maskB.astype(float), xB, yB)
+        AonB_plot_oriented, extent_B, origin_B = prepare_imshow(AonB_plot, xB_ds, yB_ds)
+        B_plot_oriented, _, _ = prepare_imshow(B_plot, xB_ds, yB_ds)
+        C_plot_oriented, extent_C, origin_C = prepare_imshow(C_plot, xC_ds, yC_ds)
+        # Orient domain masks to plotting orientation
+        maskB_oriented, _, _ = prepare_imshow(maskB_domain.astype(float), xB_ds, yB_ds)
         maskB_oriented = maskB_oriented > 0.5
-        maskC = np.isfinite(xC) & np.isfinite(yC)
-        maskC_oriented, _, _ = prepare_imshow(maskC.astype(float), xC, yC)
+        maskC_oriented, _, _ = prepare_imshow(maskC_domain.astype(float), xC_ds, yC_ds)
         maskC_oriented = maskC_oriented > 0.5
         # Maps
         maps_file = comparison_dir / f"{var_name.lower()}{suffix}_maps.png"
@@ -265,16 +363,16 @@ def main():
         C_masked = np.where(maskC_oriented, C_plot_oriented, np.nan)
         im = axes[0].imshow(np.ma.masked_invalid(AonB_masked), origin=origin_B, extent=extent_B, cmap=cmap_map, vmin=vmin, vmax=vmax, interpolation="nearest")
         axes[0].set_title("Global 0.5° regridded to 1 km (nearest)")
-        axes[0].set_xlabel("Longitude (deg)")
-        axes[0].set_ylabel("Latitude (deg)")
+        axes[0].set_xlabel("x" if kindB_used == "xy" else "Longitude (deg)")
+        axes[0].set_ylabel("y" if kindB_used == "xy" else "Latitude (deg)")
         axes[1].imshow(np.ma.masked_invalid(B_masked), origin=origin_B, extent=extent_B, cmap=cmap_map, vmin=vmin, vmax=vmax, interpolation="nearest")
         axes[1].set_title("Daymet 1 km")
-        axes[1].set_xlabel("Longitude (deg)")
-        axes[1].set_ylabel("Latitude (deg)")
+        axes[1].set_xlabel("x" if kindB_used == "xy" else "Longitude (deg)")
+        axes[1].set_ylabel("y" if kindB_used == "xy" else "Latitude (deg)")
         axes[2].imshow(np.ma.masked_invalid(C_masked), origin=origin_C, extent=extent_C, cmap=cmap_map, vmin=vmin, vmax=vmax, interpolation="nearest")
         axes[2].set_title("NALCMS-derived 1 km")
-        axes[2].set_xlabel("Longitude (deg)")
-        axes[2].set_ylabel("Latitude (deg)")
+        axes[2].set_xlabel("x" if kindC_used == "xy" else "Longitude (deg)")
+        axes[2].set_ylabel("y" if kindC_used == "xy" else "Latitude (deg)")
         # Ensure background behind transparent NaNs is white
         for ax in axes:
             ax.set_facecolor("white")
@@ -286,31 +384,37 @@ def main():
         diff_BA = daB.values - A_on_B
         diff_CA = daC.values - A_on_B
         diff_CB = daC.values - daB.values
-        _, _, diff_BA_plot = downsample_for_plot(lonB, latB, diff_BA)
-        _, _, diff_CA_plot = downsample_for_plot(lonB, latB, diff_CA)
-        _, _, diff_CB_plot = downsample_for_plot(lonB, latB, diff_CB)
-        if args.scale == "robust":
+        _, _, diff_BA_plot = downsample_for_plot(xB_grid, yB_grid, diff_BA)
+        _, _, diff_CA_plot = downsample_for_plot(xB_grid, yB_grid, diff_CA)
+        _, _, diff_CB_plot = downsample_for_plot(xB_grid, yB_grid, diff_CB)
+        if diff_lim_override is not None:
+            dlim = diff_lim_override
+        elif args.scale == "robust":
             dlim = float(np.nanpercentile(np.abs(np.concatenate([diff_BA_plot.ravel(), diff_CA_plot.ravel(), diff_CB_plot.ravel()])), 98))
         else:
             dlim = float(args.diff_lim)
-        diff_BA_oriented, _, _ = prepare_imshow(diff_BA_plot, xB, yB)
-        diff_CA_oriented, _, _ = prepare_imshow(diff_CA_plot, xB, yB)
-        diff_CB_oriented, _, _ = prepare_imshow(diff_CB_plot, xB, yB)
+        diff_BA_oriented, _, _ = prepare_imshow(diff_BA_plot, xB_ds, yB_ds)
+        diff_CA_oriented, _, _ = prepare_imshow(diff_CA_plot, xB_ds, yB_ds)
+        diff_CB_oriented, _, _ = prepare_imshow(diff_CB_plot, xB_ds, yB_ds)
+        # Apply domain mask on B grid for all three differences (they are oriented on B grid)
+        diff_BA_masked = np.where(maskB_oriented, diff_BA_oriented, np.nan)
+        diff_CA_masked = np.where(maskB_oriented, diff_CA_oriented, np.nan)
+        diff_CB_masked = np.where(maskB_oriented, diff_CB_oriented, np.nan)
         diffs_file = comparison_dir / f"{var_name.lower()}{suffix}_diffs.png"
         fig2, axes2 = plt.subplots(1, 3, figsize=(18, 6), constrained_layout=True)
         cmap_diff = make_cmap("coolwarm")
-        im2 = axes2[0].imshow(np.ma.masked_invalid(diff_BA_oriented), origin=origin_B, extent=extent_B, cmap=cmap_diff, vmin=-dlim, vmax=dlim, interpolation="nearest")
+        im2 = axes2[0].imshow(np.ma.masked_invalid(diff_BA_masked), origin=origin_B, extent=extent_B, cmap=cmap_diff, vmin=-dlim, vmax=dlim, interpolation="nearest")
         axes2[0].set_title("Daymet 1 km minus Global (on 1 km)")
-        axes2[0].set_xlabel("Longitude (deg)")
-        axes2[0].set_ylabel("Latitude (deg)")
-        axes2[1].imshow(np.ma.masked_invalid(diff_CA_oriented), origin=origin_B, extent=extent_B, cmap=cmap_diff, vmin=-dlim, vmax=dlim, interpolation="nearest")
+        axes2[0].set_xlabel("x" if kindB_used == "xy" else "Longitude (deg)")
+        axes2[0].set_ylabel("y" if kindB_used == "xy" else "Latitude (deg)")
+        axes2[1].imshow(np.ma.masked_invalid(diff_CA_masked), origin=origin_B, extent=extent_B, cmap=cmap_diff, vmin=-dlim, vmax=dlim, interpolation="nearest")
         axes2[1].set_title("NALCMS 1 km minus Global (on 1 km)")
-        axes2[1].set_xlabel("Longitude (deg)")
-        axes2[1].set_ylabel("Latitude (deg)")
-        axes2[2].imshow(np.ma.masked_invalid(diff_CB_oriented), origin=origin_B, extent=extent_B, cmap=cmap_diff, vmin=-dlim, vmax=dlim, interpolation="nearest")
+        axes2[1].set_xlabel("x" if kindB_used == "xy" else "Longitude (deg)")
+        axes2[1].set_ylabel("y" if kindB_used == "xy" else "Latitude (deg)")
+        axes2[2].imshow(np.ma.masked_invalid(diff_CB_masked), origin=origin_B, extent=extent_B, cmap=cmap_diff, vmin=-dlim, vmax=dlim, interpolation="nearest")
         axes2[2].set_title("NALCMS 1 km minus Daymet 1 km")
-        axes2[2].set_xlabel("Longitude (deg)")
-        axes2[2].set_ylabel("Latitude (deg)")
+        axes2[2].set_xlabel("x" if kindB_used == "xy" else "Longitude (deg)")
+        axes2[2].set_ylabel("y" if kindB_used == "xy" else "Latitude (deg)")
         cbar2 = fig2.colorbar(im2, ax=axes2.ravel().tolist(), shrink=0.9)
         cbar2.set_label(f"{var_name} difference" if per_layer_label is None else f"{var_name} {per_layer_label} difference")
         fig2.savefig(diffs_file, dpi=200)
@@ -329,8 +433,16 @@ def main():
         daA = get_total_urban(daA_raw)
         daB = get_total_urban(daB_raw)
         daC = get_total_urban(daC_raw)
-        # Run generic plot for totals
-        compute_stats_and_plots("PCT_URBAN", daA, daB, daC)
+        # Force x/y grids for all urban plots
+        xB_xy, yB_xy, _kB = get_plot_grid_from_ds(dsB, "xy")
+        xC_xy, yC_xy, _kC = get_plot_grid_from_ds(dsC, "xy")
+        # Run generic plot for totals with fixed percentage limits [0, 100] and optional diff cap
+        compute_stats_and_plots("PCT_URBAN", daA, daB, daC,
+                                vmin_override=0.0, vmax_override=100.0,
+                                diff_lim_override=100.0,
+                                xB_plot_grid=xB_xy, yB_plot_grid=yB_xy,
+                                xC_plot_grid=xC_xy, yC_plot_grid=yC_xy,
+                                kindB_override="xy", kindC_override="xy")
         # Per-layer figure (keep previous behavior)
         layersA = get_urban_layers(daA_raw)
         layersB = get_urban_layers(daB_raw)
@@ -340,51 +452,60 @@ def main():
         B_layers_plot = []
         C_layers_plot = []
         for i in range(3):
-            _, _, aplot = downsample_for_plot(lonB, latB, A_layers_on_B[i])
-            _, _, bplot = downsample_for_plot(lonB, latB, layersB[i].values)
-            _, _, cplot = downsample_for_plot(lonC, latC, layersC[i].values)
+            _, _, aplot = downsample_for_plot(xB_xy, yB_xy, A_layers_on_B[i])
+            _, _, bplot = downsample_for_plot(xB_xy, yB_xy, layersB[i].values)
+            _, _, cplot = downsample_for_plot(xC_xy, yC_xy, layersC[i].values)
             A_layers_plot.append(aplot)
             B_layers_plot.append(bplot)
             C_layers_plot.append(cplot)
-        if args.scale == "robust":
-            all_layer_vals = np.concatenate([x.ravel() for x in (A_layers_plot + B_layers_plot + C_layers_plot)])
-            vminL = float(np.nanpercentile(all_layer_vals, 2))
-            vmaxL = float(np.nanpercentile(all_layer_vals, 98))
-        else:
-            vminL = args.map_min
-            vmaxL = args.map_max
+        # Fixed percentage limits for per-layer plots
+        vminL = 0.0
+        vmaxL = 100.0
         out_layers = comparison_dir / "pct_urban_layers.png"
         fig3, axes3 = plt.subplots(3, 3, figsize=(18, 16), constrained_layout=True)
         A_layers_oriented = []
         B_layers_oriented = []
         C_layers_oriented = []
-        # Use downsampled lon/lat grids; prepare orientation/extent
-        xB, yB, _tmp = downsample_for_plot(lonB, latB, A_layers_on_B[0])
-        xC, yC, _tmp2 = downsample_for_plot(lonC, latC, layersC[0].values)
+        # Use downsampled plotting grids; prepare orientation/extent
+        xB_ds, yB_ds, _tmp = downsample_for_plot(xB_xy, yB_xy, A_layers_on_B[0])
+        xC_ds, yC_ds, _tmp2 = downsample_for_plot(xC_xy, yC_xy, layersC[0].values)
+        # Domain masks for layers (use lon/lat finiteness)
+        lonB_ds, latB_ds, _m = downsample_for_plot(lonB, latB, A_layers_on_B[0])
+        lonC_ds, latC_ds, _m2 = downsample_for_plot(lonC, latC, layersC[0].values)
+        maskB_layers = np.isfinite(lonB_ds) & np.isfinite(latB_ds)
+        maskC_layers = np.isfinite(lonC_ds) & np.isfinite(latC_ds)
         for j in range(3):
-            a_or, extent_B_layers, origin_B_layers = prepare_imshow(A_layers_plot[j], xB, yB)
-            b_or, _, _ = prepare_imshow(B_layers_plot[j], xB, yB)
-            c_or, extent_C_layers, origin_C_layers = prepare_imshow(C_layers_plot[j], xC, yC)
+            a_or, extent_B_layers, origin_B_layers = prepare_imshow(A_layers_plot[j], xB_ds, yB_ds)
+            b_or, _, _ = prepare_imshow(B_layers_plot[j], xB_ds, yB_ds)
+            c_or, extent_C_layers, origin_C_layers = prepare_imshow(C_layers_plot[j], xC_ds, yC_ds)
             A_layers_oriented.append((a_or, extent_B_layers, origin_B_layers))
             B_layers_oriented.append((b_or, extent_B_layers, origin_B_layers))
             C_layers_oriented.append((c_or, extent_C_layers, origin_C_layers))
+        # Oriented masks for layers
+        maskB_layers_or, _, _ = prepare_imshow(maskB_layers.astype(float), xB_ds, yB_ds)
+        maskB_layers_or = maskB_layers_or > 0.5
+        maskC_layers_or, _, _ = prepare_imshow(maskC_layers.astype(float), xC_ds, yC_ds)
+        maskC_layers_or = maskC_layers_or > 0.5
         last_im = None
         for j in range(3):
             a_im, a_ext, a_org = A_layers_oriented[j]
-            last_im = axes3[0, j].imshow(a_im, origin=a_org, extent=a_ext, cmap="viridis", vmin=vminL, vmax=vmaxL, interpolation="nearest")
+            a_im_masked = np.where(maskB_layers_or, a_im, np.nan)
+            last_im = axes3[0, j].imshow(np.ma.masked_invalid(a_im_masked), origin=a_org, extent=a_ext, cmap="viridis", vmin=vminL, vmax=vmaxL, interpolation="nearest")
             axes3[0, j].set_title(f"Global (on 1 km) layer {j}")
-            axes3[0, j].set_xlabel("Longitude (deg)")
-            axes3[0, j].set_ylabel("Latitude (deg)")
+            axes3[0, j].set_xlabel("x")
+            axes3[0, j].set_ylabel("y")
             b_im, b_ext, b_org = B_layers_oriented[j]
-            axes3[1, j].imshow(b_im, origin=b_org, extent=b_ext, cmap="viridis", vmin=vminL, vmax=vmaxL, interpolation="nearest")
+            b_im_masked = np.where(maskB_layers_or, b_im, np.nan)
+            axes3[1, j].imshow(np.ma.masked_invalid(b_im_masked), origin=b_org, extent=b_ext, cmap="viridis", vmin=vminL, vmax=vmaxL, interpolation="nearest")
             axes3[1, j].set_title(f"Daymet 1 km layer {j}")
-            axes3[1, j].set_xlabel("Longitude (deg)")
-            axes3[1, j].set_ylabel("Latitude (deg)")
+            axes3[1, j].set_xlabel("x")
+            axes3[1, j].set_ylabel("y")
             c_im, c_ext, c_org = C_layers_oriented[j]
-            axes3[2, j].imshow(c_im, origin=c_org, extent=c_ext, cmap="viridis", vmin=vminL, vmax=vmaxL, interpolation="nearest")
+            c_im_masked = np.where(maskC_layers_or, c_im, np.nan)
+            axes3[2, j].imshow(np.ma.masked_invalid(c_im_masked), origin=c_org, extent=c_ext, cmap="viridis", vmin=vminL, vmax=vmaxL, interpolation="nearest")
             axes3[2, j].set_title(f"NALCMS 1 km layer {j}")
-            axes3[2, j].set_xlabel("Longitude (deg)")
-            axes3[2, j].set_ylabel("Latitude (deg)")
+            axes3[2, j].set_xlabel("x")
+            axes3[2, j].set_ylabel("y")
         cbar3 = fig3.colorbar(last_im, ax=axes3.ravel().tolist(), shrink=0.9)
         cbar3.set_label("PCT_URBAN per-layer")
         fig3.savefig(out_layers, dpi=200)
@@ -410,6 +531,14 @@ def main():
         daB_var = dsB[v].astype(np.float64)
         daC_var = dsC[v].astype(np.float64)
 
+        is_pct = isinstance(v, str) and v.startswith("PCT_")
+        # Prepare forced xy grids for PCT_* percentage variables
+        xB_xy, yB_xy, _kB_pct = (None, None, None)
+        xC_xy, yC_xy, _kC_pct = (None, None, None)
+        if is_pct:
+            xB_xy, yB_xy, _kB_pct = get_plot_grid_from_ds(dsB, "xy")
+            xC_xy, yC_xy, _kC_pct = get_plot_grid_from_ds(dsC, "xy")
+
         # natpft per-layer plotting
         if v == "PCT_NAT_PFT" and "natpft" in daA_var.dims:
             natpft_len = int(daA_var.sizes["natpft"])
@@ -419,7 +548,16 @@ def main():
                 daA_i = daA_var.isel(natpft=i)
                 daB_i = daB_var.isel(natpft=i) if "natpft" in daB_var.dims else daB_var
                 daC_i = daC_var.isel(natpft=i) if "natpft" in daC_var.dims else daC_var
-                compute_stats_and_plots(v, daA_i, daB_i, daC_i, suffix=f"_pft{i}", per_layer_label=f"natpft={i}")
+                if is_pct:
+                    compute_stats_and_plots(v, daA_i, daB_i, daC_i,
+                                            suffix=f"_pft{i}", per_layer_label=f"natpft={i}",
+                                            vmin_override=0.0, vmax_override=100.0,
+                                            diff_lim_override=100.0,
+                                            xB_plot_grid=xB_xy, yB_plot_grid=yB_xy,
+                                            xC_plot_grid=xC_xy, yC_plot_grid=yC_xy,
+                                            kindB_override="xy", kindC_override="xy")
+                else:
+                    compute_stats_and_plots(v, daA_i, daB_i, daC_i, suffix=f"_pft{i}", per_layer_label=f"natpft={i}")
         else:
             # 3D non-PFT variables: if leading dim exists (e.g., time), try to sum or select first; for now, prefer sum over 'numurbl' only
             if "numurbl" in daA_var.dims:
@@ -433,7 +571,15 @@ def main():
                 daC_2d = daC_var.isel({list(daC_var.dims)[0]: 0}) if len(daC_var.shape) > 2 else daC_var
             else:
                 daA_2d, daB_2d, daC_2d = daA_var, daB_var, daC_var
-            compute_stats_and_plots(v, daA_2d, daB_2d, daC_2d)
+            if is_pct:
+                compute_stats_and_plots(v, daA_2d, daB_2d, daC_2d,
+                                        vmin_override=0.0, vmax_override=100.0,
+                                        diff_lim_override=100.0,
+                                        xB_plot_grid=xB_xy, yB_plot_grid=yB_xy,
+                                        xC_plot_grid=xC_xy, yC_plot_grid=yC_xy,
+                                        kindB_override="xy", kindC_override="xy")
+            else:
+                compute_stats_and_plots(v, daA_2d, daB_2d, daC_2d)
 
     print("Completed all requested comparisons.")
 
