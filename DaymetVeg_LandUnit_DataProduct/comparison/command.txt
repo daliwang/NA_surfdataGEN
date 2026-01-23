@@ -15,3 +15,24 @@ python plot_original_global_pct_lake.py \
 python plot_original_global_pct_lake.py \
   --vars PCT_URBAN PCT_NAT_PFT \
   --outdir /gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/comparison/reference_plot
+
+
+python comparison/compare_pct_nat_pft.py \
+  --global-pft-file /gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/comparison/landuse.PCT_NAT_PFT_last.nc \
+  --daymet-file /gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/comparison/surfdata.Daymet_NA.1km.2d.c250625.subset.nc \
+  --nalcms-file /gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c251230.nc \
+  --outdir /gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/comparison/pct_nat_pft_compare_landuse \
+  --pft-start 0 --pft-end 16 --scale fixed --map-min 0 --map-max 100 --diff-lim 100
+
+  python comparison/compare_lake_lulc_vs_nalcms.py \
+  --lulc-file /gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/references/LULC/PCT_LAKE_2020_1k_c230606.nc \
+  --nalcms-file /gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/comparison/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c251230.subset.nc \
+  --outdir /gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/comparison/lulc_2020_lake_compare \
+  --scale fixed --map-min 0 --map-max 100 --diff-lim 100
+
+python /gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/comparison/compare_lulc_vs_nalcms_2020_vars.py --vars PCT_LAKE PCT_GLACIER PCT_NATVEG PCT_URBAN
+
+python comparison/compare_lulc_vs_nalcms_2020_vars.py \
+  --vars PCT_URBAN \
+  --urban-per-layer \
+  --urban-layer-map "0:2,1:1,2:0"

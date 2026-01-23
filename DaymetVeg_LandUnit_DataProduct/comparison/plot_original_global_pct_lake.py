@@ -261,16 +261,16 @@ def main():
                 vmin = 0.0
                 vmax = max(20.0, vmax)
             else:
-                if args.scale == "robust":
+    if args.scale == "robust":
                     data_flat = gstack[np.isfinite(gstack)]
                     if data_flat.size == 0:
                         vmin, vmax = args.map_min, args.map_max
                     else:
                         vmin = float(np.nanpercentile(data_flat, 2))
                         vmax = float(np.nanpercentile(data_flat, 98))
-                else:
-                    vmin = args.map_min
-                    vmax = args.map_max
+    else:
+        vmin = args.map_min
+        vmax = args.map_max
                     # Auto-fraction scaling for non-PCT variables if range is [0..~1]
                     if "PCT" not in vname and vmax == 100.0:
                         finite = gstack[np.isfinite(gstack)]
@@ -372,13 +372,13 @@ def main():
         ax.set_ylabel("Latitude (deg)")
         try:
             ax.set_xlim(lon_min, lon_max)
-        except Exception:
-            pass
+    except Exception:
+        pass
         cbar = fig.colorbar(im0, ax=ax, shrink=0.9)
         cbar.set_label(vname)
         out_path = (args.outdir / args.filename_template.format(var=vname)) if multi else args.out
         fig.savefig(out_path, dpi=200)
-        plt.close(fig)
+    plt.close(fig)
         print(f"Wrote {out_path}")
 
 
