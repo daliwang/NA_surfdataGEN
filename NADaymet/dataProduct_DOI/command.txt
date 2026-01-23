@@ -1,0 +1,94 @@
+python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/validate_visualize_surfdata.py \
+  --file /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/Surfdata.Daymet_NA.1km.2d_VegMapLandUnit.c251202.nc \
+  --plot --save --outdir ./surfdata_figs --coarsen 1
+  
+
+python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/crop_align_merge.py \
+  --surf-file /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/Surfdata.Daymet_NA.1km.2d_VegMapLandUnit.c251202.nc \
+  --land-file /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/land_veg_urban_lake_percentage.nc \
+  --dx 98 --dy 72 \
+  --out-cropped /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/land_veg_urban_lake_percentage.cropped_to_surfdata.nc \
+  --out-merged  /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/surfdata_with_land_veg_urban_lake.nc
+
+  python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/validate_visualize_surfdata.py \
+  --file /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/land_veg_urban_lake_percentage.cropped_to_surfdata.nc \
+  --plot --save --outdir ./surfdata_figs_land_veg_urban_lake_percentage.cropped_to_surfdata --coarsen 1
+
+
+  python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/validate_visualize_surfdata.py \
+  --file /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/land_veg_urban_lake_percentage.cropped_to_surfdata.nc \
+  --vars land_fraction --plot --save \
+  --outdir NA_surfdataGEN/NADaymet/dataProduct_DOI/surfdata_figs_land_veg_urban_lake_percentage.cropped_to_surfdata \
+  --coarsen 1
+
+    python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/add_temp_to_surfdata.py \
+    --surf-file /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/surfdata_with_land_veg_urban_lake.nc \
+    --temp-file /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/ELM_PFTs/mean_temperature_coldest_month.nc \
+    --out-file  /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/surfdata_with_land_veg_urban_lake_and_temp.nc
+
+
+python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/validate_visualize_surfdata.py \
+  --file /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/surfdata_with_land_veg_urban_lake_and_temp.nc \
+  --plot --save \
+  --outdir ./surfdata_figs_surfdata_with_land_veg_urban_lake_temp \
+  --coarsen 8
+
+python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/add_temp_to_surfdata.py \
+  --surf-file ./surfdata_with_land_veg_urban_lake.nc \
+  --temp-file ./mean_temperature_coldest_month.nc \
+  --out-file  ./surfdata_with_land_veg_urban_lake_and_temp.nc
+
+python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/validate_visualize_surfdata.py \
+  --file ./surfdata_with_land_veg_urban_lake_and_temp.nc \
+  --plot --save \
+  --outdir ./surfdata_figs_surfdata_with_land_veg_urban_lake_temp --coarsen 1
+
+
+python3 ./fix_xy_units.py \
+  --in  ./surfdata_with_land_veg_urban_lake_and_temp.nc \
+  --out ./surfdata_with_land_veg_urban_lake_and_temp.fixed_units.nc
+
+python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/convert_surfdata_float32.py \
+  --in  ./surfdata_with_land_veg_urban_lake_and_temp.fixed_units.nc \
+  --out ./NA_surfdata_nalcms2daymet_pft_landunit_temp.nc \
+  --level 5
+
+  python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/validate_visualize_surfdata.py \
+  --file ./NA_surfdata_nalcms2daymet_pft_landunit_temp.nc \
+  --plot --save \
+  --outdir ./surfdata_figs_NA_surfdata_nalcms2daymet_pft_landunit_temp.nc --coarsen 1
+
+# Crop PFT breakdown and combined counts to Surfdata grid
+python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/crop_align_merge.py \
+  --surf-file /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/Surfdata.Daymet_NA.1km.2d_VegMapLandUnit.c251202.nc \
+  --land-file  /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/ELM_PFTs/ELM_PFT_output/pft_total_count_percentage.nc \
+  --dx 98 --dy 72 \
+  --out-cropped /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/ELM_PFTs/ELM_PFT_output/pft_total_count_percentage.cropped_to_surfdata.nc
+
+python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/crop_align_merge.py \
+  --surf-file /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/Surfdata.Daymet_NA.1km.2d_VegMapLandUnit.c251202.nc \
+  --land-file  /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/ELM_PFTs/ELM_PFT_output/combined_pft_urban_lake_glacier_total_count.nc \
+  --dx 98 --dy 72 \
+  --out-cropped /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/ELM_PFTs/ELM_PFT_output/combined_pft_urban_lake_glacier_total_count.cropped_to_surfdata.nc
+
+# Build surfdata-like file with maps + counts + per-PFT breakdown
+python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/build_vegmap_surfdata_from_combined.py \
+  --template /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/Surfdata.Daymet_NA.1km.2d_VegMapLandUnit.c251202.nc \
+  --combined /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/NA_surfdata_nalcms2daymet_pft_landunit_temp.nc \
+  --pft-breakdown /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/ELM_PFTs/ELM_PFT_output/pft_total_count_percentage.cropped_to_surfdata.nc \
+  --counts /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/ELM_PFTs/ELM_PFT_output/combined_pft_urban_lake_glacier_total_count.cropped_to_surfdata.nc \
+  --out /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.nc \
+  --with-date-stamp --stamp-format c%y%m%d
+
+# Plot urban classes and PFTs (mask oceans)
+python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/validate_visualize_surfdata.py \
+  --file /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/NA_surfdata_nalcms2daymet_pft_landunit_temp.nc \
+  --vars PCT_URBAN --category-mode each --category-dim numurbl \
+  --origin upper --mask-by PCT_NATVEG --nan-color white --nan-alpha 0.0 --coarsen 1 \
+  --plot --save --outdir /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/surfdata_figs_NA_surfdata_nalcms2daymet_pft_landunit_temp.nc
+
+python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/validate_visualize_surfdata.py \
+  --file /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/NA_surfdata_nalcms2daymet_pft_landunit_temp.nc \
+  --vars PCT_NAT_PFT --category-mode each --category-dim natpft \
+  --origin upper --mask-by PCT_NATVEG --nan-color white --nan-alpha 0.0 --coarsen 1 \
+  --plot --save --outdir /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/surfdata_figs_NA_surfdata_nalcms2daymet_pft_landunit_temp.nc

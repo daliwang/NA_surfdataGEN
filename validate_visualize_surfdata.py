@@ -81,6 +81,23 @@ def parse_args() -> argparse.Namespace:
         help="Generate map plots for selected variables.",
     )
     parser.add_argument(
+        "--origin",
+        choices=["auto", "upper", "lower"],
+        default="upper",
+        help="Image origin for plotting. 'upper' puts the first row at the top.",
+    )
+    parser.add_argument(
+        "--nan-color",
+        default="white",
+        help="Matplotlib color for NaN (masked) pixels, e.g., 'white' or '#ffffff'.",
+    )
+    parser.add_argument(
+        "--nan-alpha",
+        type=float,
+        default=0.0,
+        help="Alpha for NaN (masked) pixels (0.0 transparent .. 1.0 opaque).",
+    )
+    parser.add_argument(
         "--category-mode",
         choices=["sum", "each", "index"],
         default="sum",
@@ -101,6 +118,11 @@ def parse_args() -> argparse.Namespace:
         "--weight-by",
         default=None,
         help="Variable name to weight by before plotting (e.g., PCT_NATVEG). If percentage-like, divides by 100.",
+    )
+    parser.add_argument(
+        "--mask-by",
+        default=None,
+        help="Variable name to use as an explicit mask; any value <0 or NaN will be masked (useful for ocean masking).",
     )
     parser.add_argument(
         "--show",
@@ -370,6 +392,10 @@ def plot_variable(
     da: xr.DataArray,
     lat_name: Optional[str],
     lon_name: Optional[str],
+    origin_mode: str,
+    nan_color: str,
+    nan_alpha: float,
+    mask_by: Optional["xr.DataArray"],
     outdir: str,
     save: bool,
     show: bool,
@@ -393,7 +419,7 @@ def plot_variable(
 
     # Compute extent if lat/lon are 1D coords aligned to dims
     extent = None
-    origin = "lower"
+    origin = "upper" if origin_mode == "upper" else "lower"
     if lat_name and lon_name:
         try:
             lat = data.coords.get(lat_name, None)
@@ -401,20 +427,22 @@ def plot_variable(
             if lat is not None and lon is not None:
                 # Handle 1D or 2D coords
                 if lat.ndim == 1 and lon.ndim == 1:
-                    # Decide origin by checking whether latitude decreases with row index
-                    lat_vals = lat.values
-                    if lat_vals.size >= 2 and lat_vals[0] > lat_vals[-1]:
-                        origin = "upper"
-                    else:
-                        origin = "lower"
+                    # Decide origin if auto
+                    if origin_mode == "auto":
+                        lat_vals = lat.values
+                        if lat_vals.size >= 2 and lat_vals[0] > lat_vals[-1]:
+                            origin = "upper"
+                        else:
+                            origin = "lower"
                     extent = [float(lon.min()), float(lon.max()), float(lat.min()), float(lat.max())]
                 elif lat.ndim == 2 and lon.ndim == 2:
-                    # For 2D, compare mean latitude of first vs last row
-                    lat_vals = lat.values
-                    if lat_vals.shape[0] >= 2:
-                        top_mean = float(np.nanmean(lat_vals[0, :]))
-                        bottom_mean = float(np.nanmean(lat_vals[-1, :]))
-                        origin = "upper" if top_mean > bottom_mean else "lower"
+                    if origin_mode == "auto":
+                        # For 2D, compare mean latitude of first vs last row
+                        lat_vals = lat.values
+                        if lat_vals.shape[0] >= 2:
+                            top_mean = float(np.nanmean(lat_vals[0, :]))
+                            bottom_mean = float(np.nanmean(lat_vals[-1, :]))
+                            origin = "upper" if top_mean > bottom_mean else "lower"
                     extent = [
                         float(np.nanmin(lon.values)),
                         float(np.nanmax(lon.values)),
@@ -425,12 +453,49 @@ def plot_variable(
             extent = None
 
     fig, ax = plt.subplots(figsize=(8, 6), dpi=150)
+    # Mask NaNs and attribute-declared fill values; set color for masked values
+    cmap = plt.cm.viridis.copy()
+    try:
+        cmap.set_bad(color=nan_color, alpha=nan_alpha)
+    except Exception:
+        # Fallback without customization
+        pass
+    # Align optional mask_by to data
+    if mask_by is not None:
+        try:
+            # Drop any singleton dims like 'file'=1 to match 2D slices
+            try:
+                mask_by = mask_by.squeeze(drop=True)
+            except Exception:
+                pass
+            data, mask_by = xr.align(data, mask_by, join="inner")
+        except Exception:
+            pass
+    arr = data.values
+    mask = ~np.isfinite(arr)
+    # Respect common fill-value attributes if present
+    for key in ("_FillValue", "missing_value", "fill_value"):
+        if key in data.attrs:
+            try:
+                fv = float(data.attrs[key])
+                mask |= (arr == fv)
+            except Exception:
+                pass
+    # Heuristic: many count grids use negative values as nodata
+    if np.issubdtype(arr.dtype, np.integer):
+        mask |= (arr < 0)
+    # Apply external mask (e.g., pft_total_count < 0 → ocean)
+    if mask_by is not None:
+        mb = mask_by.values
+        mask |= (~np.isfinite(mb)) | (mb < 0)
+    masked = np.ma.array(arr, mask=mask)
     im = ax.imshow(
-        data.values,
+        masked,
         origin=origin,
         interpolation="nearest",
         extent=extent,
         aspect="auto",
+        cmap=cmap,
     )
     ax.set_title(name)
     if extent:
@@ -497,6 +562,9 @@ def main() -> None:
 
     # Process variables
     any_plotted = False
+    mask_da_global = None
+    if hasattr(args, "mask_by") and args.mask_by and args.mask_by in ds.data_vars:
+        mask_da_global = ds[args.mask_by]
     for name in variables:
         da = ds[name]
         # Prepare plot slices based on category handling and optional weighting
@@ -531,6 +599,10 @@ def main() -> None:
                         da=da_for_plot,
                         lat_name=lat_name,
                         lon_name=lon_name,
+                        origin_mode=args.origin,
+                        nan_color=args.nan_color,
+                        nan_alpha=args.nan_alpha,
+                        mask_by=mask_da_global,
                         outdir=args.outdir,
                         save=args.save,
                         show=args.show,
