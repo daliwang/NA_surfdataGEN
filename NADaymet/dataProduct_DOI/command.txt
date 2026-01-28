@@ -92,3 +92,23 @@ python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/validate_
   --vars PCT_NAT_PFT --category-mode each --category-dim natpft \
   --origin upper --mask-by PCT_NATVEG --nan-color white --nan-alpha 0.0 --coarsen 1 \
   --plot --save --outdir /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/surfdata_figs_NA_surfdata_nalcms2daymet_pft_landunit_temp.nc
+
+  python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/plot_avgtemp_contours.py --file /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c251230.nc --temp-range 0 10 --num-levels 10 --save --outdir /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/contour
+
+   python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/plot_avgtemp_contours.py --file /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c251230.nc --temp-level 18 --save --outdir ./contours
+
+
+  python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/validate_visualize_surfdata.py \
+  --file /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260128.nc \
+  --vars PCT_NAT_PFT \
+  --category-mode each \
+  --category-dim natpft \
+  --plot --save \
+  --outdir /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/figures_c260128/surfdata_figs_VegMapLandUnit_PCT_NAT_PFT
+
+  python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/validate_visualize_surfdata.py \
+  --file /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260128.nc \
+  --vars PCT_NATVEG PCT_LAKE PCT_URBAN PCT_GLACIER AvgTempColdMonth \
+  --validate --stats --plot --save \
+  --outdir /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/figures_c260128/surfdata_figs_VegMapLandUnit \
+  --coarsen 1
