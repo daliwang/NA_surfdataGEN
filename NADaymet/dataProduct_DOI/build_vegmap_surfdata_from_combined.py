@@ -145,6 +145,27 @@ def main() -> None:
             pft_slices.append(v)
         pct_natpft = xr.concat(pft_slices, dim="natpft")
 
+    # Optional temperature field (AvgTempColdMonth) from combined file
+    temp_da = None
+    if "AvgTempColdMonth" in cmb.data_vars:
+        v = cmb["AvgTempColdMonth"].squeeze(drop=True)
+        # Rename spatial dims to y/x if needed
+        if len(v.dims) >= 2:
+            ren_t = {}
+            if v.dims[-2] != ydim:
+                ren_t[v.dims[-2]] = ydim
+            if v.dims[-1] != xdim:
+                ren_t[v.dims[-1]] = xdim
+            if ren_t:
+                v = v.rename(ren_t)
+        # Align to template grid coords (name and size)
+        try:
+            v, _ = xr.align(v, ycoord, join="override")
+            v, _ = xr.align(v, xcoord, join="override")
+        except Exception:
+            pass
+        temp_da = v.astype(np.float32)
+
     # Build output dataset starting from template
     # Carry through coordinates and selected aux variables
     keep_vars = {}
@@ -178,6 +199,8 @@ def main() -> None:
     out["PCT_NATVEG"] = ensure_dims(pct_natveg)
     out["PCT_URBAN"] = ensure_dims(urban3)
     out["PCT_NAT_PFT"] = ensure_dims(pct_natpft)
+    if temp_da is not None:
+        out["AvgTempColdMonth"] = ensure_dims(temp_da)
 
     # Bring original per-PFT counts from the PFT breakdown file if present
     for i in range(17):
@@ -213,6 +236,11 @@ def main() -> None:
     out["PCT_URBAN"].attrs.update(long_name="percent urban for each density type", units="unitless")
     out["PCT_NATVEG"].attrs.update(long_name="total percent natural vegetation landunit", units="unitless")
     out["PCT_NAT_PFT"].attrs.update(long_name="percent plant functional type on the natural veg landunit (% of landunit)", units="unitless")
+    if "AvgTempColdMonth" in out.data_vars:
+        out["AvgTempColdMonth"].attrs.update(
+            long_name="Average temperature of coldest month",
+            units="C",
+        )
     # Add descriptive attrs for count variables
     if "pft_total_count" in out.data_vars:
         out["pft_total_count"].attrs.update(
