@@ -232,7 +232,7 @@ def get_plot_grid_from_ds(ds: xr.Dataset, mode: str):
 def main():
     parser = argparse.ArgumentParser(description="Compare LULC 2020 1km PCT_* (lake/glacier/natveg/urban) to NALCMS surfdata Daymet 1km counterparts.")
     parser.add_argument("--lulc-dir", type=Path, default=Path("/gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/references/LULC"))
-    parser.add_argument("--nalcms-file", type=Path, default=Path("/gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/comparison/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c251230.subset.nc"))
+    parser.add_argument("--nalcms-file", type=Path, default=Path("/gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/comparison/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260122.nc"))
     parser.add_argument("--vars", type=str, nargs="+", default=["PCT_LAKE", "PCT_GLACIER", "PCT_NATVEG", "PCT_URBAN"])
     parser.add_argument("--outdir", type=Path, default=Path("/gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/comparison/lulc_2020_compare"))
     parser.add_argument("--scale", choices=["robust", "fixed"], default="fixed")

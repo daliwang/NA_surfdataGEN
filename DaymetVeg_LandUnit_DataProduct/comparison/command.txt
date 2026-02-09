@@ -36,3 +36,29 @@ python comparison/compare_lulc_vs_nalcms_2020_vars.py \
   --vars PCT_URBAN \
   --urban-per-layer \
   --urban-layer-map "0:2,1:1,2:0"
+
+  python comparison/compare_nalcms_vs_lulc_nat_pft.py \
+  --nalcms-file /gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/comparison/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260122.nc \
+  --lulc-index-file /gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/references/LULC/PCT_NAT_PFT_INDEX_2020_1k_c230606.nc
+
+
+  python comparison/compare_pct_nat_pft.py \
+  --global-pft-file /gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/comparison/landuse.PCT_NAT_PFT_last.nc \
+  --daymet-file /gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/comparison/surfdata.Daymet_NA.1km.2d.c250625.subset.nc \
+  --nalcms-file /gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/comparison/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260122.nc \
+  --outdir /gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/comparison/pct_nat_pft_compare_landuse \
+  --pft-start 0 --pft-end 16 --scale fixed --map-min 0 --map-max 100 --diff-lim 100
+
+    python comparison/compare_surfdata_vars_twoglobaldataset.py \
+  --outdir /gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/comparison/Surfdata_c260122_comparison_plots \
+  --vars PCT_URBAN PCT_LAKE PCT_GLACIER PCT_NATVEG PCT_NAT_PFT
+
+    python comparison/compare_surfdata_vars_twoglobaldataset.py \
+  --vars PCT_URBAN \
+  --urban-per-layer \
+  --outdir /gpfs/wolf2/cades/cli185/proj-shared/wangd/kiloCraft/NA_surfdataGEN/DaymetVeg_LandUnit_DataProduct/comparison/Surfdata_c260122_comparison_plots
+
+  python comparison/compare_surfdata_vars_twoglobaldataset.py \
+  --vars PCT_URBAN \
+  --urban-total \
+  --outdir comparison/Surfdata_c260122_comparison_plots
