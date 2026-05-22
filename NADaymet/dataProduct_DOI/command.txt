@@ -112,3 +112,16 @@ python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/validate_
   --validate --stats --plot --save \
   --outdir /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/figures_c260128/surfdata_figs_VegMapLandUnit \
   --coarsen 1
+
+# --- Great Lakes open-water correction (see README_Great_Lakes_Lake_Fix.md) ---
+
+python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/fix_great_lakes_lake_mask.py \
+  --in-file  /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260128.nc \
+  --out-file /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260128.great_lakes_fix.nc \
+  --landtype14-tif /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/landtype14_count_in_namask.tif \
+  --buffer-m 15000
+
+python3 /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/validate_visualize_surfdata.py \
+  --file /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260128.great_lakes_fix.nc \
+  --vars PCT_NATVEG PCT_LAKE PCT_URBAN PCT_GLACIER \
+  --validate --stats
