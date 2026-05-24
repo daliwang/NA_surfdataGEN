@@ -1,0 +1,14 @@
+category,check,value,units,notes
+final product,source file,surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260128.nc,,/Users/7xw/Documents/Work/papers/NALCMS_sn-article/DaymetVeg_LandUnit_DataProduct/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260128.nc
+final product,valid land cells,21128080,cells,
+final product,full-land cells,20820165,cells,total_count >= 1089
+final product,partial-land cells,307915,cells,0 < total_count < 1089
+final product,PFT closure cells checked,20639331,cells,
+final product,PFT closure failures,10,cells,absolute error > 0.001
+final product,maximum PFT closure error,100,percentage points,
+final product,mean PFT closure error,4.90054e-05,percentage points,
+final product,land-unit closure cells checked,21128080,cells,
+final product,land-unit closure failures,0,cells,absolute error > 0.001
+final product,maximum land-unit closure error,7.62939e-06,percentage points,
+final product,mean land-unit closure error,6.33438e-08,percentage points,
+intermediate counts,class-count closure,skipped,,

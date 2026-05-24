@@ -1,0 +1,77 @@
+# Paper figure and validation commands
+# Run from the manuscript repository root unless noted otherwise.
+#
+#   REPO=/Users/7xw/Documents/Work/papers/NALCMS_sn-article
+#   NA_SURFDATA=/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN
+
+# --- 1. Great Lakes open-water correction (NetCDF) ---
+
+python3 $NA_SURFDATA/NADaymet/dataProduct_DOI/fix_great_lakes_lake_mask.py \
+  --in-file  $REPO/DaymetVeg_LandUnit_DataProduct/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260128.nc \
+  --out-file $REPO/DaymetVeg_LandUnit_DataProduct/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260128.great_lakes_fix.nc \
+  --landtype14-tif $NA_SURFDATA/NADaymet/landtype14_count_in_namask.tif \
+  --buffer-m 15000
+
+# --- 2. Internal validation ---
+
+# Corrected file (default; used for the paper)
+python3 $REPO/internal_validation/compute_internal_validation.py
+
+# Uncorrected base file (comparison)
+python3 $REPO/internal_validation/compute_internal_validation.py \
+  --final-nc $REPO/DaymetVeg_LandUnit_DataProduct/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260128.nc
+
+# Skip class-count GeoTIFF pass (faster)
+python3 $REPO/internal_validation/compute_internal_validation.py --skip-class-count-closure
+
+# --- 3. Land-unit RGB map (Figure 5) ---
+
+cd $REPO/PaperFigures/scripts
+python3 generate_landtype_rgb.py
+
+# Custom paths
+python3 generate_landtype_rgb.py \
+  --surfdata-file $REPO/DaymetVeg_LandUnit_DataProduct/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260128.great_lakes_fix.nc \
+  --outdir $REPO/PaperFigures \
+  --output-name landtype_rgb_map.png \
+  --dpi 180
+
+# --- 4. MTCO figures ---
+
+cd $REPO/PaperFigures/scripts
+python3 generate_mtco_plots.py
+
+python3 generate_mtco_plots.py --plot-type ranges
+python3 generate_mtco_plots.py --plot-type thresholds
+
+python3 generate_mtco_plots.py \
+  --mtco-file $NA_SURFDATA/NADaymet/dataProduct_DOI/mean_temperature_coldest_month.nc \
+  --outdir $REPO/PaperFigures \
+  --dpi 220
+
+# --- 5. PFT example panel ---
+
+cd $REPO/PaperFigures/scripts
+python3 generate_pft_panel.py
+
+# --- 6. Full rebuild (fix → validate → RGB map) ---
+
+python3 $NA_SURFDATA/NADaymet/dataProduct_DOI/fix_great_lakes_lake_mask.py \
+  --in-file  $REPO/DaymetVeg_LandUnit_DataProduct/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260128.nc \
+  --out-file $REPO/DaymetVeg_LandUnit_DataProduct/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260128.great_lakes_fix.nc \
+  --buffer-m 15000
+
+python3 $REPO/internal_validation/compute_internal_validation.py
+
+cd $REPO/PaperFigures/scripts && python3 generate_landtype_rgb.py
+
+# --- 7. Li et al. (2020) LULC comparison panels (3-panel: NALCMS | Li | diff) ---
+
+cd $REPO/PaperFigures/scripts
+python3 generate_li_lulc_comparison.py
+
+python3 generate_li_lulc_comparison.py \
+  --lulc-dir $REPO/DaymetVeg_LandUnit_DataProduct/references/LULC \
+  --nalcms-file $REPO/DaymetVeg_LandUnit_DataProduct/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260128.great_lakes_fix.nc \
+  --outdir $REPO/PaperFigures/comparison/li_lulc_2020 \
+  --urban-mode stream
