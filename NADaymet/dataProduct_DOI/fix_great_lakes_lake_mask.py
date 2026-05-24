@@ -4,15 +4,27 @@ Correct Great Lakes lake fractions in a Daymet NALCMS surfdata file.
 
 Root cause
 ----------
-NALCMS maps open water in the Great Lakes to class 14 (Wetland), not class 18
-(Water). The standard pipeline counts only class 18 as lake, so Great Lakes
-cells appear as wetland vegetation (PFT 13) or as ocean/no-data when counts
-are missing after grid cropping.
+The 30 m NALCMS source (nalcms2daymet_hcompressed.tif) maps Great Lakes open
+water as class 18 (Water). Lake fractions are still missing in 1 km surfdata
+because of pipeline masking and count assembly, not because the source maps
+lakes as wetland:
 
-Fix
----
-For grid cells whose centers fall inside Great Lakes polygons (Natural Earth
-10m lakes), reclassify NALCMS class-14 pixel counts as lake:
+1. na_mask.tif marks many open-lake 1 km cells as mask=0. class_count_na_para.py
+   only tallies 30 m pixels where na_mask==1, so class-18 counts remain -1.
+2. Water-dominated cells inside na_mask can still fail when pft_total_count sums
+   -1 sentinels across PFT layers and combined count files store int16 fill.
+3. Domain cropping to the surfdata grid (crop_align_merge.py) preserves these
+   gaps in the final product.
+
+See diagnose_great_lakes_pipeline_gap.py for a reproducible summary.
+
+Fix (post-processing)
+---------------------
+For grid cells inside buffered Great Lakes polygons (Natural Earth 10 m lakes),
+reassign class-14 wetland counts to lake where present, apply class-18 water
+counts from the 1 km count rasters, and assign 100% lake to remaining open-water
+holes with missing totals. Extend the same logic to cropped shoreline fringe
+cells in the Great Lakes bounding box outside the buffered polygon.
 
   lake_count  += wetland14_count
   pft_total   -= wetland14_count
@@ -241,6 +253,20 @@ def recompute_percentages(
     return pct_lake, pct_veg, pct_out, pct_urban_out, pct_glacier_out
 
 
+def great_lakes_bbox_mask(lon: np.ndarray, lat: np.ndarray, gl_gdf: gpd.GeoDataFrame, pad_deg: float = 0.5) -> np.ndarray:
+    """Axis-aligned bounding box around Great Lakes polygons (with padding)."""
+    valid = np.isfinite(lon) & np.isfinite(lat)
+    gl = gl_gdf.to_crs("EPSG:4326") if gl_gdf.crs.to_epsg() != 4326 else gl_gdf
+    minx, miny, maxx, maxy = gl.total_bounds
+    return (
+        valid
+        & (lon >= minx - pad_deg)
+        & (lon <= maxx + pad_deg)
+        & (lat >= miny - pad_deg)
+        & (lat <= maxy + pad_deg)
+    )
+
+
 def apply_great_lakes_fix(
     in_file: Path,
     out_file: Path,
@@ -259,16 +285,7 @@ def apply_great_lakes_fix(
     x_grid, y_grid = np.meshgrid(ds["x"].values, ds["y"].values)
 
     gl_mask = build_great_lakes_mask(lon, lat, gl_gdf, buffer_m=buffer_m)
-    wetland14 = sample_landtype14_counts(x_grid, y_grid, gl_mask, landtype14_tif)
-    transfer = np.where(gl_mask, wetland14, 0).astype(np.int32)
-
-    if landtype18_tif is None:
-        landtype18_tif = landtype14_tif.with_name("landtype18_count_in_namask.tif")
-    water18 = (
-        sample_landtype_counts(x_grid, y_grid, gl_mask, landtype18_tif)
-        if landtype18_tif.is_file()
-        else np.zeros(lon.shape, dtype=np.int32)
-    )
+    gl_bbox = great_lakes_bbox_mask(lon, lat, gl_gdf)
 
     lake_count = ds["lake_count"].values.astype(np.int32).copy()
     pft_total_count = ds["pft_total_count"].values.astype(np.int32).copy()
@@ -287,6 +304,26 @@ def apply_great_lakes_fix(
     lake_count[fill_mask] = 0
     pft_total_count[fill_mask] = 0
 
+    # Sample class counts on buffered polygons plus Great Lakes bbox fringe outside buffer.
+    extended_fringe = gl_bbox & ~gl_mask
+    fringe_mask = extended_fringe & fill_mask
+    count_sample_mask = gl_mask | extended_fringe
+    wetland14 = sample_landtype14_counts(x_grid, y_grid, count_sample_mask, landtype14_tif)
+
+    if landtype18_tif is None:
+        landtype18_tif = landtype14_tif.with_name("landtype18_count_in_namask.tif")
+    water18 = (
+        sample_landtype_counts(x_grid, y_grid, count_sample_mask, landtype18_tif)
+        if landtype18_tif.is_file()
+        else np.zeros(lon.shape, dtype=np.int32)
+    )
+
+    # Transfer class-14 wetland counts to lake inside the buffered mask, and on
+    # cropped shoreline fringe cells outside the mask that still carry class-14 signal.
+    transfer_inside = np.where(gl_mask, wetland14, 0).astype(np.int32)
+    transfer_fringe = np.where(fringe_mask & (wetland14 > 0), wetland14, 0).astype(np.int32)
+    transfer = transfer_inside + transfer_fringe
+
     transfer_cells = transfer > 0
     n_transfer_cells = int(transfer_cells.sum())
     pixels_moved = int(transfer[transfer_cells].sum())
@@ -296,7 +333,8 @@ def apply_great_lakes_fix(
     pft_total_count = np.maximum(pft_total_count, 0)
 
     # Cells with class-18 water counts but missing surfdata totals (cropped open water).
-    water18_cells = gl_mask & (water18 > 0) & (lake_count == 0) & (pft_total_count == 0)
+    water18_region = gl_mask | (extended_fringe & (water18 > 0))
+    water18_cells = water18_region & (water18 > 0) & (lake_count == 0) & (pft_total_count == 0)
     lake_count[water18_cells] = water18[water18_cells]
 
     # Remaining open-water holes inside the buffered lake mask: no class counts after crop.
@@ -311,7 +349,10 @@ def apply_great_lakes_fix(
         lake_count[open_water_holes] = 1000
 
     total_count = lake_count + pft_total_count + urban_count + glacier_count
-    update_mask = gl_mask & (total_count > 0)
+    update_mask = (
+        (gl_mask | (fringe_mask & (transfer > 0)) | water18_cells)
+        & (total_count > 0)
+    )
 
     pct_lake, pct_veg, pct_nat_pft, pct_urban, pct_glacier = recompute_percentages(
         lake_count=lake_count,
@@ -350,8 +391,10 @@ def apply_great_lakes_fix(
 
     out.attrs["great_lakes_fix"] = (
         "Reclassified NALCMS class-14 wetland counts to lake inside buffered Great "
-        f"Lakes polygons (Natural Earth 10m lakes, buffer={buffer_m:g} m). "
-        "Assigned 100% lake to cropped open-water cells with missing class counts."
+        f"Lakes polygons (Natural Earth 10m lakes, buffer={buffer_m:g} m) and on "
+        "cropped shoreline fringe cells in the Great Lakes bounding box with missing "
+        "surfdata totals. Assigned 100% lake to cropped open-water cells with missing "
+        "class counts inside the buffered mask."
     )
     out.attrs["great_lakes_fix_buffer_m"] = float(buffer_m)
     out.attrs["great_lakes_fix_source"] = str(landtype14_tif)
@@ -364,7 +407,9 @@ def apply_great_lakes_fix(
 
     stats = {
         "gl_mask_cells": int(gl_mask.sum()),
+        "fringe_fill_cells": int(fringe_mask.sum()),
         "transfer_cells": n_transfer_cells,
+        "fringe_transfer_cells": int((transfer_fringe > 0).sum()),
         "wetland_pixels_reclassified": pixels_moved,
         "output": str(out_file),
     }

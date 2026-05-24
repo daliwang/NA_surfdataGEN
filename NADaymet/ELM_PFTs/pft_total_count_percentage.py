@@ -10,10 +10,10 @@ with Dataset(input_file, 'r') as nc:
     pft_count_vars = {var: nc.variables[var][:] for var in nc.variables if var.endswith('_count')}
     print("Loaded variables:", list(pft_count_vars.keys()))
 
-# Calculate total count
+# Calculate total count (-1 is a masked placeholder in per-class count rasters)
 pft_total_count = np.zeros_like(next(iter(pft_count_vars.values())), dtype=np.int16)
 for arr in pft_count_vars.values():
-    pft_total_count += arr
+    pft_total_count += np.where(arr >= 0, arr, 0)
 
 # Calculate percentage for each PFT, set np.nan where total count is negative
 pft_percentage_vars = {}

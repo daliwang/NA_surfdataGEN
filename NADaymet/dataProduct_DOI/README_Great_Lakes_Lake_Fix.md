@@ -1,50 +1,72 @@
 # Great Lakes lake-landunit correction
 
+> **2026-05-22 upstream fix:** `na_mask.tif` has been extended to include inland open water (class 18). See **`README_NA_Mask_Open_Water_Fix.md`** for the full changelog, verification tables, and pipeline rebuild steps. The post-processing script below remains valid for the current surfdata release until rebuild completes.
+
 ## Root cause
 
-NALCMS classifies open water in the **Great Lakes as class 14 (Wetland)**, not class 18 (Water).
+The 30 m NALCMS source (`NADaymet/entire_domain/nalcms2daymet_hcompressed.tif`) maps **Great Lakes open water as class 18 (Water)**. Lake fractions are missing in 1 km surfdata because of pipeline masking and count assembly:
 
-The standard NA_surfdataGEN pipeline:
+1. **`na_mask.tif`** marks many open-lake 1 km cells as `mask=0`. `class_count_na_para.py` only counts 30 m pixels where `na_mask==1`, so `landtype18_count_in_namask.tif` stays `-1`.
+2. **`pft_total_count_percentage.py`** sums PFT layers using `-1` sentinels, yielding negative totals (e.g. `-22`) on water-only cells inside the mask.
+3. **`pft_urban_lake_glacier_percentage.py`** treats non-positive totals as non-land; **`crop_align_merge.py`** maps the result into surfdata with int16 fill (`-32767`).
 
-1. `nalcms_seperate_class*.py` splits NALCMS into per-class GeoTIFFs.
-2. `class_count_na_para.py` counts pixels of each class on the Daymet `na_mask.tif` grid.
-3. `batch_create_pft_nc.py` maps class 14 → ELM PFT 13 (wetland vegetation) and class 18 → `lake`.
-4. `pft_urban_lake_glacier_percentage.py` computes `PCT_LAKE` from **class-18 counts only**.
+Verified at lake centres:
 
-Because Great Lakes pixels are class 14, they enter the product as wetland/vegetation. Open-lake grid cells also often had missing cropped counts (`total_count = -32767`), which appear as ocean/white in RGB maps.
+| Location | 30 m source class | `na_mask` | `landtype18_count` |
+|----------|-------------------|-----------|---------------------|
+| Lake Michigan centre | 18 | 0 | -1 |
+| Lake Superior centre | 18 | 0 | -1 |
 
-Verified at Lake Michigan center (`-87°, 45°`):
-
-| Source | Value |
-|--------|-------|
-| `nalcms_18_Water.tif` | 0 |
-| `nalcms_14_Wetland.tif` | 14 |
-| `landtype18_count_in_namask.tif` | 0 |
-| `landtype14_count_in_namask.tif` | 306 |
+Run **`diagnose_great_lakes_pipeline_gap.py`** for full Great Lakes bbox statistics.
 
 See **`Great_Lakes_Open_Water_Report.md`** for the full diagnostic write-up.
 
-## Fix script
+## Upstream fix (applied 2026-05-22)
 
-`fix_great_lakes_lake_mask.py` reclassifies NALCMS class-14 pixel counts as lake **inside buffered Great Lakes polygons** (Natural Earth 10 m lakes):
+See **`README_NA_Mask_Open_Water_Fix.md`** for full documentation.
+
+| Item | Detail |
+|------|--------|
+| Script | `extend_na_mask_open_water.py` |
+| Mask change | +228,169 cells (`mask=0` → `1`) where 30 m centre = class 18 |
+| Backups | `entire_domain/na_mask.tif.bak`, `NADaymet/na_mask.tif.bak` |
+| Class-18 counts | `landtype18_count_in_namask.tif` patched for all new cells |
+| PFT totals | `ELM_PFTs/pft_total_count_percentage.py` sums `-1` as zero |
+
+```bash
+cd NADaymet/dataProduct_DOI
+
+python3 extend_na_mask_open_water.py --dry-run
+python3 extend_na_mask_open_water.py --update-landtype18
+python3 extend_na_mask_open_water.py --patch-only --only-missing   # if needed
+```
+
+**Great Lakes bbox after fix (GeoTIFF stage):** `na_mask==0` dropped from 73.7% to 0.1% of fill cells; `landtype18_count > 0` rose from 16,353 to 180,916. Surfdata NetCDF unchanged until pipeline rebuild.
+
+## Post-processing fix (current surfdata release)
+
+`fix_great_lakes_lake_mask.py` rebuilds lake land units **inside buffered Great Lakes polygons** (Natural Earth 10 m lakes) and on **shoreline fringe** fill cells:
 
 ```
-lake_count      += wetland14_count
-pft_total_count -= wetland14_count
-PCT_LAKE / PCT_NATVEG / PCT_NAT_PFT / PCT_URBAN / PCT_GLACIER recomputed from counts
+lake_count      += wetland14_count   (where class-14 counts exist)
+lake_count       = water18_count     (where class-18 counts exist)
+open-water holes = 100% lake         (inside buffered mask, no class signal)
+PCT_* recomputed from updated counts
 ```
 
 Implementation notes:
 
-- Class-14 counts are sampled with **Daymet projected x/y** (meters), not lon/lat.
-- Default **15 km polygon buffer** covers lake extremities missed by strict Natural Earth boundaries.
-- Class-18 counts are used when present; remaining cropped open-water holes inside the mask receive a representative full-cell lake count.
-- PFT 13 (wetland) is reduced in proportion to transferred wetland count.
+- Class counts sampled with **Daymet projected x/y** (meters), not lon/lat.
+- Default **15 km polygon buffer** covers lake extremities.
+- Shoreline fringe pass handles fill cells outside the buffer but inside the Great Lakes bounding box.
 
 ### Usage
 
 ```bash
 cd NADaymet/dataProduct_DOI
+
+python3 diagnose_great_lakes_pipeline_gap.py \
+  --surfdata-file /path/to/surfdata...c260128.nc
 
 python3 fix_great_lakes_lake_mask.py \
   --in-file  ./surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260128.nc \
@@ -53,49 +75,10 @@ python3 fix_great_lakes_lake_mask.py \
   --buffer-m 15000
 ```
 
-Optional arguments:
+## Remaining pipeline work
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--landtype18-tif` | `../landtype18_count_in_namask.tif` | Class-18 water count GeoTIFF |
-| `--buffer-m` | `15000` | Buffer (meters) applied to Great Lakes polygons |
-| `--cache-dir` | `great_lakes_cache/` | Natural Earth shapefile cache (auto-downloaded) |
-
-### Validation (corrected file)
-
-After applying the fix to `c260128.nc`:
-
-| Check | Result |
-|-------|--------|
-| Land-unit closure | 0 failures across 21,323,964 valid land cells |
-| PFT closure | 10 pre-existing edge-case failures (unchanged from base `c260128.nc`) |
-| White RGB pixels inside buffered mask | 0 |
-
-Run internal validation from the manuscript repo (or pass `--final-nc` to point at the corrected file).
-
-## Output file
-
-Recommended release filename:
-
-```
-surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260128.great_lakes_fix.nc
-```
-
-NetCDF attributes record `great_lakes_fix`, `great_lakes_fix_buffer_m`, `great_lakes_fix_source`, and `great_lakes_fix_script`.
-
-## Longer-term pipeline fix (optional)
-
-To fix at source instead of post-processing:
-
-1. When building `nalcms_18_Water.tif`, reassign class-14 pixels inside Great Lakes (or other large-lake masks) to class 18 before counting; **or**
-2. Add a rule in count aggregation: `lake_count = class18_count + class14_count_in_great_lakes`.
-
-This preserves NALCMS class integrity elsewhere while treating known misclassified open water as lake.
-
-## Related files
-
-| File | Description |
-|------|-------------|
-| `fix_great_lakes_lake_mask.py` | Correction script |
-| `Great_Lakes_Open_Water_Report.md` | Full root-cause and validation report |
-| `command.txt` | Example commands (includes Great Lakes fix block) |
+1. ~~Expand `na_mask` for inland open water~~ — **done** (`extend_na_mask_open_water.py`; see `README_NA_Mask_Open_Water_Fix.md`)
+2. ~~Sum PFT counts treating `-1` as zero~~ — **done** (`ELM_PFTs/pft_total_count_percentage.py`)
+3. **Rebuild surfdata** from updated GeoTIFFs (class counts → PFT combine → crop → surfdata)
+4. Allow lake-only cells (`lake_count > 0`, all PFT counts zero) to receive valid `PCT_LAKE` without requiring vegetation counts (verify after rebuild)
+5. Regenerate paper figures from new base surfdata; update `scientific_data_descriptor.tex` Methods
