@@ -111,6 +111,26 @@ For direct land units (no climate split), this writes e.g.:
 
 Vegetation classes produce `pft*.nc` files used in Phase 2.
 
+### 1d. Minimal path after mask-only fix (recommended)
+
+When only **228,169** cells changed (`na_mask` 0→1) and class-18 was fully re-counted, skip full 1–19 re-count and use:
+
+```bash
+cd $DOI
+
+python3 prepare_open_mask_cells.py --dry-run
+python3 prepare_open_mask_cells.py
+```
+
+This script:
+
+1. Sets `-1 → 0` on `landtype{1-17,19}_count_in_namask.tif` for newly opened cells only.
+2. Writes `landtypes_count/landtype18_nalcms_Water_in_daymet.nc`.
+3. Rebuilds `ELM_PFT_output/lake_landtype18_nalcms_Water_in_daymet.nc`.
+4. Zeros `urban_count` / `glacier_count` on new cells in existing ELM PFT NetCDFs.
+
+**Sanity check (2026-05-24):** full re-count of classes 1–17 and 19 is **not** required — new cells are 100% class-18 water at 30 m centre; only class 18 needed a full re-count (~98 min via `class_count_na_para.py`).
+
 ### Phase 1 checkpoint
 
 ```bash
@@ -135,6 +155,10 @@ Expect **228,169+** water-dominated cells with positive class-18 counts after th
 
 ```bash
 cd $PFT
+
+# combine_pft_counts.py reads pft*.nc from $PFT cwd; per-landtype files live in ELM_PFT_output/
+for f in "$PFT_OUT"/pft*_landtype*.nc; do ln -sf "$f" .; done
+# Do NOT symlink cropped percentage files (e.g. pft_total_count_percentage.cropped_to_surfdata.nc)
 
 # Backup previous outputs (optional)
 mv $PFT_OUT/combined_pft_count.nc $PFT_OUT/combined_pft_count.bak.nc 2>/dev/null || true
@@ -166,6 +190,22 @@ python3 make_land_veg_urban_lake_glacier_percentage.py \
 ### Phase 2 checkpoint
 
 Inspect a Great Lakes cell in `combined_pft_urban_lake_glacier_total_count.nc`: open-lake interiors should have **`lake_count > 0`** and **`pft_total_count ≥ 0`** (not `-22`).
+
+```bash
+python3 << 'PYEOF'
+import numpy as np, rasterio
+from netCDF4 import Dataset
+from pathlib import Path
+nad = Path("${NAD}")
+with rasterio.open(nad/"entire_domain/na_mask.tif.bak") as o, rasterio.open(nad/"entire_domain/na_mask.tif") as n:
+    opened = (o.read(1)==0) & (n.read(1)==1)
+with Dataset(nad/"ELM_PFTs/ELM_PFT_output/combined_pft_urban_lake_glacier_total_count.nc") as nc:
+    lake, pft = nc.variables["lake_count"][0], nc.variables["pft_total_count"][0]
+print("new cells:", opened.sum(), "lake>0:", (lake[opened]>0).sum(), "pft==-22:", (pft[opened]==-22).sum())
+PYEOF
+```
+
+**Expected on 228,169 newly opened cells (2026-05-24):** `lake_count > 0` on all; `pft_total_count = 0`; `lake_percentage = 100%`; zero cells with `pft_total_count = -22`.
 
 ---
 
@@ -339,9 +379,9 @@ Use post-processing only if diagnostics still show shoreline fringe gaps or wetl
 ```
 Phase 0  extend_na_mask_open_water.py  →  na_mask.tif, landtype18_count_in_namask.tif
               ↓
-Phase 1  class_count (opt) → landtype_tif2nc → batch_create_pft_nc
+Phase 1  class_count (opt) → prepare_open_mask_cells.py  OR  landtype_tif2nc → batch_create_pft_nc
               ↓
-Phase 2  combine_pft_counts → pft_total_count_percentage → pft_urban_lake_glacier_percentage
+Phase 2  symlink pft*_landtype*.nc → combine_pft_counts → pft_total_count_percentage → pft_urban_lake_glacier_percentage
          → make_land_veg_urban_lake_glacier_percentage.nc
               ↓
 Phase 3  crop_align_merge (×3)  [dx=98, dy=72]
@@ -362,6 +402,7 @@ Phase 5  diagnose_great_lakes_pipeline_gap, compute_internal_validation, figure 
 | `patch-only: 0 cells` | Already patched | Expected; use `--patch-only` without `--only-missing` to force recount |
 | `landtype18` still `-1` | Mask not extended | Rerun Phase 0 |
 | Cropped arrays misaligned | Wrong template or dx/dy | Use `c251202.nc`, dx=98, dy=72 |
+| `combine_pft_counts` shape mismatch | Symlinked cropped percentage NC | Link only `pft*_landtype*.nc` from `ELM_PFT_output/` |
 
 ---
 
@@ -370,6 +411,7 @@ Phase 5  diagnose_great_lakes_pipeline_gap, compute_internal_validation, figure 
 | Phase | Script | Directory |
 |-------|--------|-----------|
 | 0 | `extend_na_mask_open_water.py`, `diagnose_great_lakes_pipeline_gap.py` | `dataProduct_DOI/` |
+| 1 | `prepare_open_mask_cells.py` (minimal path) | `dataProduct_DOI/` |
 | 1 | `class_count_na_para.py` | `NADaymet/` |
 | 1 | `landtype_tif2nc.py` | `landtypes_count/` |
 | 1 | `batch_create_pft_nc.py` | `ELM_PFTs/` |
@@ -380,4 +422,28 @@ Phase 5  diagnose_great_lakes_pipeline_gap, compute_internal_validation, figure 
 
 ---
 
-*Last updated: 2026-05-23. Mask fix applied 2026-05-22 (+228,169 cells; all patched with class-18 counts).*
+## Appendix E — Execution log (2026-05-24)
+
+| Step | Status | Notes |
+|------|--------|-------|
+| Phase 0 `extend_na_mask_open_water.py` | Done (2026-05-22) | +228,169 cells |
+| Full class-18 re-count | Done (~98 min) | `landtype18_count_in_namask.tif`; backup `.prepatch.bak` |
+| Sanity: classes 1–17, 19 on new cells | Done | All were `-1`; patch to 0 sufficient |
+| `prepare_open_mask_cells.py` | Done | 228,169 cells patched per class; lake NC rebuilt |
+| Phase 2 PFT combine | Done | Checkpoint: 100% lake on new cells; no `-22` totals |
+| Phase 3–4 surfdata rebuild | Done (2026-05-24) | `surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260524.nc` (508 MB) |
+| Phase 5 validation / figures | Partial | Internal validation passed; figure scripts not rerun |
+
+### c260524 vs c260128 (Great Lakes bbox)
+
+| Metric | c260128 | c260524 |
+|--------|---------|---------|
+| `PCT_LAKE == 100%` cells | 4,698 | **227,547** |
+| `PCT_LAKE > 0` cells | 338,440 | **561,289** |
+| Fill cells (`total_count = -32767`, NaN lake) | 223,803 | **954** |
+
+Internal validation: **0** PFT closure failures, **0** land-unit closure failures on 21.36M valid land cells.
+
+---
+
+*Last updated: 2026-05-24. Full rebuild complete through Phase 5 validation; stamped product `c260524`.*

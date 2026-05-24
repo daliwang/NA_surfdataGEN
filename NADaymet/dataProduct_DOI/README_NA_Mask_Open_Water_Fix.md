@@ -1,7 +1,7 @@
 # Upstream fix: extend `na_mask` for inland open water
 
-**Date:** 2026-05-22  
-**Status:** Applied to GeoTIFF inputs; surfdata NetCDF **not yet rebuilt**  
+**Date:** 2026-05-22 (mask fix); 2026-05-24 (full rebuild through `c260524`)  
+**Status:** **Complete** — stamped surfdata `surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260524.nc`  
 **Related:** `README_Great_Lakes_Lake_Fix.md`, `Great_Lakes_Open_Water_Report.md`
 
 ---
@@ -153,30 +153,47 @@ After a full pipeline rebuild with the updated `na_mask`, the post-processor sho
 
 ## Next steps (pipeline rebuild)
 
-The following have **not** been run yet:
+### Completed (2026-05-24)
 
-1. **Re-run class counts** (optional if `landtype18` patch is sufficient for lake; recommended for all classes):
+1. **Full class-18 re-count** (~98 min):
    ```bash
    cd NADaymet
    python3 class_count_na_para.py nalcms_18_Water.tif
-   # ... remaining land-cover classes as needed
    ```
+   Output: `landtype18_count_in_namask.tif` (backup: `landtype18_count_in_namask.tif.prepatch.bak`).
 
-2. **Rebuild PFT / combined count NetCDFs** using the updated count GeoTIFFs and fixed `pft_total_count_percentage.py`:
-   - `ELM_PFTs/batch_create_pft_nc.py` (or equivalent batch step)
-   - `pft_urban_lake_glacier_percentage.py`
-   - `dataProduct_DOI/crop_align_merge.py`
-   - `build_vegmap_surfdata_from_combined.py`
+2. **Sanity check:** classes 1–17 and 19 on the 228,169 newly opened cells were all `-1` at 30 m centre (100% class 18). Full re-count of those classes is **not** required.
 
-3. **Re-validate:**
-   ```bash
-   python3 diagnose_great_lakes_pipeline_gap.py --surfdata-file /path/to/new_surfdata.nc
+3. **Minimal Phase 1 prep** via `prepare_open_mask_cells.py`:
+   - Patched `-1 → 0` on classes 1–17, 19 for new cells only
+   - Rebuilt `landtypes_count/landtype18_nalcms_Water_in_daymet.nc`
+   - Rebuilt `ELM_PFT_output/lake_landtype18_nalcms_Water_in_daymet.nc`
+
+4. **Phase 2 PFT combine** (see runbook for symlink note):
+   - `combine_pft_counts.py` → `pft_total_count_percentage.py` → `pft_urban_lake_glacier_percentage.py`
+   - `make_land_veg_urban_lake_glacier_percentage.py`
+   - **Checkpoint:** all 228,169 new cells have `lake_count > 0`, `lake_percentage = 100%`, `pft_total_count = 0` (no `-22` bug).
+
+### Completed (2026-05-24) — full rebuild
+
+5. **Phases 3–4:** cropped, merged, and built final surfdata:
    ```
-   Expect `na_mask==0` ≈ 0 for open-lake interiors and valid `PCT_LAKE` without post-processing.
+   surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260524.nc
+   ```
+   Location: `NADaymet/dataProduct_DOI/`
 
-4. **Regenerate paper figures** from the new base surfdata (Figure 5 RGB map, Li et al. comparison panels).
+6. **Phase 5 validation:**
+   - Great Lakes fill cells: **954** (down from 223,803 on `c260128`)
+   - `PCT_LAKE == 100%` in Great Lakes bbox: **227,547** (up from 4,698)
+   - Internal validation: 0 PFT / land-unit closure failures
 
-5. **Update manuscript** (`scientific_data_descriptor.tex`) Methods / Technical Validation to describe the upstream mask extension.
+### Optional follow-ups
+
+1. **Regenerate paper figures** from `c260524.nc` (Figure 5 RGB map, Li et al. comparison panels).
+
+2. **Update manuscript** (`scientific_data_descriptor.tex`) Methods / Technical Validation to describe the upstream mask extension.
+
+3. **Post-processing** (`fix_great_lakes_lake_mask.py`) — only if shoreline fringe or wetland-14 → lake transfer is still desired (~954 residual fill cells).
 
 **Full step-by-step runbook:** `REPORT_Surfdata_Rebuild_5_Phase_Runbook.md`
 
@@ -187,6 +204,7 @@ The following have **not** been run yet:
 | File | Role |
 |------|------|
 | `extend_na_mask_open_water.py` | Extend `na_mask`; patch `landtype18_count_in_namask.tif` |
+| `prepare_open_mask_cells.py` | Minimal Phase 1 after mask-only fix (patch sentinels, rebuild lake NC) |
 | `diagnose_great_lakes_pipeline_gap.py` | Reproducible before/after diagnostic |
 | `fix_great_lakes_lake_mask.py` | Post-processing surfdata correction (existing release) |
 | `class_count_na_para.py` | Per-class 30 m → 1 km counting (uses `na_mask`) |
