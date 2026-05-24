@@ -178,6 +178,8 @@ The following have **not** been run yet:
 
 5. **Update manuscript** (`scientific_data_descriptor.tex`) Methods / Technical Validation to describe the upstream mask extension.
 
+**Full step-by-step runbook:** `REPORT_Surfdata_Rebuild_5_Phase_Runbook.md`
+
 ---
 
 ## File index
