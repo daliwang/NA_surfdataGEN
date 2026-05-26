@@ -16,6 +16,8 @@ where \(C_A\) and \(C_B\) are the counts assigned to the warmer and colder PFTs,
 
 The script writes one NetCDF file per landtype-to-PFT mapping with dimensions (\texttt{y}, \texttt{x}), integer \texttt{*_count} variables (zlib compression, level 5), and metadata including the original landtype filename. For split cases, \texttt{AvgTemp} is also written to the file and threshold bounds are recorded as global attributes.
 
+NALCMS class 19 (Snow/Ice) is mapped to a glacier land unit rather than a vegetation PFT; glacier counts are excluded from the PFT stack and handled separately with urban and lake land units (see below). NALCMS class 3 (Tropical or sub-tropical broadleaf evergreen forest) requires an additional single-threshold split at \(18\,^{\circ}\mathrm{C}\) MTCO into warm broadleaf evergreen temperate trees (PFT4, \(T > 18\,^{\circ}\mathrm{C}\)) and cool broadleaf evergreen boreal trees (PFT5, \(T \le 18\,^{\circ}\mathrm{C}\)), with count conservation enforced as for other split classes. Implementation: \texttt{ELM\_PFTs/split\_tropical\_evergreen\_18C.py}.
+
 \subsection{Combining PFT Counts}
 Individual \texttt{pft*.nc} files are consolidated by stacking variables that end with \texttt{\_count} and summing across files, preserving a singleton ``file'' dimension when appropriate. Negative source values are treated as fill (set to \(-1\)). The combined dataset is saved as \texttt{ELM\_PFT\_output/combined\_pft\_count.nc} with CF-style attributes. Implementation: \texttt{ELM\_PFTs/combine\_pft\_counts.py}.
 
@@ -27,7 +29,7 @@ From combined counts, we compute a per-cell total count and per-PFT percentages:
   \text{NaN}, & C_{\text{tot}} \le 0~(\text{non-land}).
   \end{cases}
 \]
-These are stored in \texttt{ELM\_PFT\_output/pft\_total\_count\_percentage.nc} as integer totals and float percentages (NaN fill). Implementation: \texttt{ELM\_PFTs/pft\_total\_count\_percentage.py}.
+These are stored in \texttt{ELM\_PFT\_output/pft\_total\_count\_percentage.nc} as integer totals and float percentages (NaN fill). When summing PFT layers, fill values of \(-1\) are treated as zero so water-dominated cells do not accumulate invalid negative totals before lake, urban, and glacier counts are merged. Implementation: \texttt{ELM\_PFTs/pft\_total\_count\_percentage.py}.
 
 \subsection{Integration with Urban, Lake, and Glacier}
 We merge PFT totals with urban (landtype 17), lake (18), and glacier (19) counts to form a grand total and class percentages as:
@@ -45,6 +47,9 @@ We also compute a land fraction (percent of 1~km cell covered by valid 30~m pixe
 \]
 Thresholds 1089 and 1156 correspond to nominal pixel counts for 33×33 and 34×34 30~m pixels per 1~km cell, respectively. Output is \texttt{ELM\_PFT\_output/combined\_pft\_urban\_lake\_glacier\_total\_count.nc}. Implementation: \texttt{ELM\_PFTs/pft\_urban\_lake\_glacier\_percentage.py}.
 
+\subsection{Final Surfdata Assembly}
+Intermediate count and percentage fields are cropped and aligned to the surfdata template grid (\texttt{crop\_align\_merge.py}, offsets \(dx=98\), \(dy=72\)), merged with land-unit fractions, and written to ELM-ready variables (\texttt{PCT\_NAT\_PFT}, \texttt{PCT\_NATVEG}, \texttt{PCT\_URBAN}, \texttt{PCT\_LAKE}, \texttt{PCT\_GLACIER}, \texttt{land\_fraction}). Mean temperature of the coldest month (MTCO) is added as \texttt{AvgTempColdMonth} from \texttt{mean\_temperature\_coldest\_month.nc} (\texttt{add\_temp\_to\_surfdata.py}). Count variables and per-PFT breakdown fields are retained for traceability. The stamped release file is built with \texttt{build\_vegmap\_surfdata\_from\_combined.py}. Implementation scripts are in \texttt{NADaymet/dataProduct\_DOI/}.
+
 \subsection{GeoTIFF Exports}
 Gridded diagnostics (percentages/fractions) are exported to GeoTIFF using the georeference of the Daymet mask (\texttt{large\_daymet\_mask.tif}). Arrays are resized if necessary via bilinear resampling, masked to land (mask==1), and written as single-band Float32 with nodata \(-9999). Implementation: \texttt{ELM\_PFTs/export\_percentages\_to\_tif.py}.
 
@@ -52,5 +57,4 @@ Additionally, \texttt{AvgTemp} is exported to GeoTIFF aligned to the same mask a
 
 \subsection{Data Types, Conventions, and Alignment}
 All NetCDF outputs follow CF-1.6-style metadata with compressed variables (zlib level 5). Counts are stored as signed 16-bit integers; percentage and fraction fields as 32-bit floats with NaN fill. All rasters/NetCDF arrays share the Daymet grid CRS, affine transform, pixel origin, and 1~km spacing to ensure pixel-level consistency across products.
-
 

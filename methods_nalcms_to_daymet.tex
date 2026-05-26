@@ -10,7 +10,7 @@ NALCMS rasters were reprojected and aligned to the Daymet grid prior to aggregat
 To facilitate aggregation, the reprojected NALCMS raster was split into per-class masks. For each of the 19 NALCMS classes (IDs 1--19), a single-band GeoTIFF was written with the same georeferencing as the input and a nodata value of 127. These files follow the pattern \texttt{nalcms\_\textless id\textgreater\_\textless name\textgreater.tif}. Processing was performed in memory-efficient blocks and stored with LZW compression. This step was implemented in Python using Rasterio and NumPy (script: \texttt{nalcms\_seperate\_class\_large.py}).
 
 \subsection{Aggregation from 30 m to the 1 km Daymet Grid}
-For each Daymet gridcell, we counted the number of underlying 30~m pixels belonging to a given class. Gridcell polygons were derived from the Daymet mask geotransform. For a class with ID \(k\) and a Daymet cell indexed by \(i\), the count \(c_{i,k}\) is
+For each Daymet gridcell, we counted the number of underlying 30~m pixels belonging to a given class. Gridcell polygons were derived from the Daymet mask geotransform. Counting was restricted to cells where the North American active-domain mask (\texttt{na\_mask.tif}) equals 1; cells with \texttt{na\_mask=0} were excluded from aggregation and assigned a fill value of \(-1\) in the per-class count rasters. For a class with ID \(k\) and a Daymet cell indexed by \(i\), the count \(c_{i,k}\) is
 \[
   c_{i,k} = \sum_{p \in \mathcal{P}_i} \mathbf{1}\{ \text{NALCMS}(p) = k \},
 \]
@@ -18,10 +18,14 @@ where \(\mathcal{P}_i\) is the set of 30~m pixels intersecting the \(i\)-th Daym
 
 Optional fractions and areas can be derived from the counts: \(f_{i,k} = c_{i,k}/N_i\), where \(N_i\) is the number of valid 30~m pixels in cell \(i\); and \(\text{area}_{i,k} = c_{i,k} \times 900\,\text{m}^2\).
 
+\subsection{Active-Domain Mask and Inland Open Water}
+The active-domain mask defines which 1~km Daymet cells participate in class counting and downstream surfdata assembly. In the initial public release (\texttt{c251230.nc}), many inland open-water cells were marked \texttt{na\_mask=0} even when the 30~m NALCMS source at the cell centre was class 18 (Water), so class-18 counts never entered the pipeline and lake fractions were incomplete over inland lakes.
+
+For the current data record (\texttt{c260524.nc}), inland open-water cells are included upstream before aggregation. For each 1~km cell with \texttt{na\_mask=0}, the 30~m NALCMS class at the projected cell centre is sampled; if that class is 18, the cell is set to \texttt{na\_mask=1}. Class-18 counts are then re-aggregated for the opened cells, and count placeholders on newly opened cells are initialized before PFT and land-unit processing. Implementation: \texttt{NADaymet/dataProduct\_DOI/extend\_na\_mask\_open\_water.py} and \texttt{NADaymet/dataProduct\_DOI/prepare\_open\_mask\_cells.py}.
+
 \subsection{Quality Control}
 We validated the per-class masks and counts by scanning rasters in blocks to confirm value encoding and pixel totals. A utility script was used to parse class IDs from filenames and tally pixels equal to the expected class value in each file (script: \texttt{nalcms2daymet\_script/check\_geotiff.py}).
 
 \subsection{Outputs}
 The pipeline yields: (i) per-class NALCMS masks aligned to the Daymet grid (uint8, LZW, nodata=127), and (ii) per-class 1~km count rasters giving the number of 30~m NALCMS pixels per Daymet cell (int16, nodata=\(-1\)). File naming follows the patterns \texttt{nalcms\_\textless id\textgreater\_\textless name\textgreater.tif} and \texttt{landtype\textless id\textgreater\_count\_in\_namask.tif}.
-
 
