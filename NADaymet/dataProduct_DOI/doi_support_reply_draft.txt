@@ -1,0 +1,53 @@
+Subject: Re: Variable list mismatch — updated NetCDF and README metadata (DOI 10.13139/OLCF/3364821)
+
+Dear OLCF Data Publishing Support,
+
+Thank you for flagging the inconsistency between the README variable list and the NetCDF contents. We have reviewed the issue, corrected the data product, and aligned the metadata. Please use the attached files to update the record at https://doi.org/10.13139/OLCF/3364821.
+
+Attachments:
+  1. surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260603.nc  (replacement data file)
+  2. veg_landunit_meta_data.md  (updated README metadata)
+
+---
+
+Response to your review items
+
+1. Variables listed in the README but missing from the previous NetCDF
+
+   • pft_percentage, urban_percentage, lake_percentage — These diagnostic fields are now included in c260603.nc. They report the vegetation, urban, and lake components as a percentage of the active land-unit pixel total (pft + urban + lake + glacier) and are provided for quality assurance alongside the ELM surfdata fields (PCT_NATVEG, PCT_URBAN, PCT_LAKE).
+
+   • glacier_percentage — Also added in c260603.nc (was omitted from the earlier README list; it is now documented).
+
+   • lake_fraction — This name was incorrect in the README variable list. The product does not define a variable called lake_fraction. Lake coverage is given by PCT_LAKE (ELM surfdata fraction) and lake_percentage (diagnostic). Partial-cell land occupancy is given by land_fraction. We have removed any reference to lake_fraction from veg_landunit_meta_data.md and clarified the intended variables.
+
+2. Variables present in the NetCDF but missing from the README variable list
+
+   • gridID — Now listed in veg_landunit_meta_data.md (template grid cell identifier from the surfdata shell).
+
+   • glacier_count — Now listed in veg_landunit_meta_data.md (30 m pixel count for NALCMS class 19 / glacier).
+
+3. Consistency check
+
+   We verified that all 23 documented names in veg_landunit_meta_data.md (coordinates y, x, index natpft, and 20 data fields) are present in c260603.nc with matching dimensions. No extra data fields appear in the file beyond those listed in the metadata.
+
+---
+
+Product update summary
+
+We are replacing the deposited file with:
+
+  surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260603.nc
+
+at the same DOI (https://doi.org/10.13139/OLCF/3364821). Version c260603 supersedes the earlier upload and includes the variable-list corrections above, plus pipeline fixes (inland open-water mask extension, Great Lakes mask completion, full NALCMS class re-count for newly opened mask cells, and AvgTempColdMonth). The prior public release remains available at https://doi.org/10.13139/OLCF/3005830 (c251230.nc).
+
+Recommended citation for the updated record:
+
+  Wang, D., Wang, Y. R., Thornton, P., Ricciuto, D. Gridded vegetation and land unit datasets over North America for E3SM Land Model (Version c260603). Oak Ridge Leadership Computing Facility. https://doi.org/10.13139/OLCF/3364821 (2026).
+
+Please let us know if you need any further information or a different file format for ingestion.
+
+Best regards,
+
+Dali Wang
+Oak Ridge National Laboratory
+wangd@ornl.gov

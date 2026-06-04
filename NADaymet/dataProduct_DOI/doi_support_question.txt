@@ -1,0 +1,7 @@
+Just one small item. In the readme file, there is a mismatch between the Variable List and the variables that appear in the .nc file.
+
+In the variable list but not in the file: pft_percentage, urban_percentage, lake_percentage, lake_fraction
+
+In the file but not the metadata list: gridID, glacier_count
+
+Can you review and make sure the included variables are as expected, and that the veg_landunit_meta_data.md matches?

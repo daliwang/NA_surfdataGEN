@@ -20,10 +20,12 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from typing import List
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 import numpy as np
 import xarray as xr
+import pyproj
 
 
 def open_ds(path: str) -> xr.Dataset:
@@ -38,13 +40,58 @@ def open_ds(path: str) -> xr.Dataset:
     raise RuntimeError(f"Failed to open {path}:\n" + "\n".join(errors))
 
 
+def load_proj4_string() -> Optional[str]:
+    proj4_path = Path(__file__).resolve().parents[1] / "landtypes_count" / "na_mask_crs_proj4.txt"
+    if not proj4_path.exists():
+        return None
+    text = proj4_path.read_text(encoding="utf-8").strip()
+    return text or None
+
+
+def fill_missing_lonlat(
+    lon: np.ndarray,
+    lat: np.ndarray,
+    xcoord: xr.DataArray,
+    ycoord: xr.DataArray,
+    proj4: Optional[str],
+) -> Tuple[np.ndarray, np.ndarray]:
+    if proj4 is None:
+        return lon, lat
+    mask = ~np.isfinite(lon) | ~np.isfinite(lat)
+    if not np.any(mask):
+        return lon, lat
+    try:
+        src = pyproj.CRS.from_proj4(proj4)
+        dst = pyproj.CRS.from_epsg(4326)
+        transformer = pyproj.Transformer.from_crs(src, dst, always_xy=True)
+    except Exception as exc:
+        print(f"Warning: failed to build transformer from proj4: {exc}", file=sys.stderr)
+        return lon, lat
+
+    ys = ycoord.values
+    xs = xcoord.values
+    idx = np.argwhere(mask)
+    if idx.size == 0:
+        return lon, lat
+    y_idx = idx[:, 0]
+    x_idx = idx[:, 1]
+    x_vals = xs[x_idx].astype(np.float64, copy=False)
+    y_vals = ys[y_idx].astype(np.float64, copy=False)
+    lon_vals, lat_vals = transformer.transform(x_vals, y_vals)
+    lon = lon.astype(np.float64, copy=False)
+    lat = lat.astype(np.float64, copy=False)
+    lon[y_idx, x_idx] = lon_vals
+    lat[y_idx, x_idx] = lat_vals
+    return lon.astype(np.float32), lat.astype(np.float32)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Build surfdata from combined and PFT breakdown files.")
     ap.add_argument("--template", required=True, help="Template surfdata file (for coords and aux vars)")
     ap.add_argument("--combined", required=True, help="Combined percentages file (NA_surfdata_nalcms2daymet_pft_landunit_temp.nc)")
     ap.add_argument("--pft-breakdown", required=True, help="PFT total count percentage file with pft0..16_percentage variables")
     ap.add_argument("--out", required=True, help="Output surfdata file path")
-    ap.add_argument("--counts", default=None, help="Optional counts file (e.g., combined_pft_urban_lake_glacier_total_count.nc) to carry pft/urban/lake/glacier/total counts")
+    ap.add_argument("--counts", default=None, help="Optional counts file (e.g., combined_pft_urban_lake_glacier_total_count.nc) to carry pft/urban/lake/glacier/total counts and optional land-unit percentages")
     ap.add_argument("--with-date-stamp", action="store_true", help="Append date stamp like cYYMMDD to output filename")
     ap.add_argument("--stamp-format", default="c%y%m%d", help="strftime format for stamp (default: c%%y%%m%%d)")
     args = ap.parse_args()
@@ -52,6 +99,7 @@ def main() -> None:
     tmpl = open_ds(args.template)
     cmb = open_ds(args.combined)
     pft = open_ds(args.pft_breakdown)
+    cnt = open_ds(args.counts) if args.counts else None
 
     # Accept either (y,x) or (lat,lon) in the template; target dims are (y,x)
     if not (("y" in tmpl.dims and "x" in tmpl.dims) or ("lat" in tmpl.dims and "lon" in tmpl.dims)):
@@ -181,6 +229,19 @@ def main() -> None:
     coords[xdim] = xcoord
     out = xr.Dataset(data_vars=keep_vars, coords=coords)
 
+    # Fill missing lon/lat using x/y + projection metadata if available.
+    if "LONGXY" in out.data_vars and "LATIXY" in out.data_vars:
+        proj4 = load_proj4_string()
+        lon, lat = fill_missing_lonlat(
+            out["LONGXY"].values,
+            out["LATIXY"].values,
+            xcoord if xcoord.dims == (xdim,) else xcoord.rename({xcoord.dims[0]: xdim}),
+            ycoord if ycoord.dims == (ydim,) else ycoord.rename({ycoord.dims[0]: ydim}),
+            proj4,
+        )
+        out["LONGXY"].values = lon
+        out["LATIXY"].values = lat
+
     # Assign new percentages with proper dims
     # Ensure dims names match template (ydim, xdim)
     def ensure_dims(da: xr.DataArray) -> xr.DataArray:
@@ -216,8 +277,7 @@ def main() -> None:
             out[vn] = v
 
     # Optionally attach aggregate count variables for tracking
-    if args.counts:
-        cnt = open_ds(args.counts)
+    if cnt is not None:
         for name in ("pft_total_count", "urban_count", "lake_count", "glacier_count", "total_count"):
             if name in cnt.data_vars:
                 v = cnt[name].squeeze(drop=True)
@@ -229,6 +289,23 @@ def main() -> None:
                     pass
                 v = ensure_dims(v).astype(np.int16, copy=False)
                 out[name] = v
+
+    # Optional land-unit percentages (prefer counts file, fallback to combined file)
+    for name in ("pft_percentage", "urban_percentage", "lake_percentage", "glacier_percentage", "land_fraction"):
+        src = None
+        if cnt is not None and name in cnt.data_vars:
+            src = cnt[name]
+        elif name in cmb.data_vars:
+            src = cmb[name]
+        if src is None:
+            continue
+        v = src.squeeze(drop=True)
+        try:
+            v, _ = xr.align(v, tmpl[src_ydim], join="override")
+            v, _ = xr.align(v, tmpl[src_xdim], join="override")
+        except Exception:
+            pass
+        out[name] = ensure_dims(v).astype(np.float32, copy=False)
 
     # Set attributes
     out["PCT_LAKE"].attrs.update(long_name="percent lake", units="unitless")
@@ -267,6 +344,18 @@ def main() -> None:
                 long_name=ln,
                 units="count",
                 description="-1 indicates ocean/non-land.",
+            )
+    for name, ln in [
+        ("pft_percentage", "PFT percentage of (PFT+Urban+Lake+Glacier)"),
+        ("urban_percentage", "Urban percentage of (PFT+Urban+Lake+Glacier)"),
+        ("lake_percentage", "Lake percentage of (PFT+Urban+Lake+Glacier)"),
+        ("glacier_percentage", "Glacier percentage of (PFT+Urban+Lake+Glacier)"),
+        ("land_fraction", "Estimated land fraction per gridcell based on total_count"),
+    ]:
+        if name in out.data_vars:
+            out[name].attrs.update(
+                long_name=ln,
+                units="percent",
             )
 
     # Compression encoding

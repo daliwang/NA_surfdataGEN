@@ -1,0 +1,19 @@
+# Large data products (build via pipeline or download from OLCF DOI)
+*.nc
+*.tif
+*.tiff
+*.tar.gz
+
+# Regenerated diagnostic figures
+figures_c*/
+
+# Pipeline backups, intermediates, and logs
+phase*_bak*/
+landtype_count_bak*/
+*_bak/
+phase*.log
+contour/
+contours/
+/tmp/
+
+.DS_Store

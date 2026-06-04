@@ -1,0 +1,113 @@
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/diagnose_great_lakes_pipeline_gap.py:118: RuntimeWarning: invalid value encountered in scalar divide
+  print(f"  na_mask==0 (never counted):           {(na_vals == 0).sum():6d} ({100*(na_vals==0).sum()/len(idx):.1f}%)")
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/diagnose_great_lakes_pipeline_gap.py:119: RuntimeWarning: invalid value encountered in scalar divide
+  print(f"  na_mask==1 (inside land mask):        {(na_vals == 1).sum():6d} ({100*(na_vals==1).sum()/len(idx):.1f}%)")
+Surfdata file: /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/surfdata.Daymet_NA.nalcms.1km.2d.VegMapLandUnitTemp.c260603.nc
+Great Lakes bbox fill cells (missing PCT_LAKE): 0
+
+Breakdown of Great Lakes fill cells:
+  na_mask==0 (never counted):                0 (nan%)
+  na_mask==1 (inside land mask):             0 (nan%)
+  class-18 count > 0 (1 km tif):             0
+  class-14 count > 0 (1 km tif):             0
+  30 m source class 18 at cell center:       0
+  30 m source class 14 at cell center:       0
+  mask==0 & 30m class 18:                    0
+  mask==1 & t18>0 but surf still fill:       0
+
+Open-lake reference points (30 m source vs 1 km pipeline):
+location                  na_mask   t18cnt   src30m
+Lake Superior center            1     1089       18
+Lake Michigan center            1     1089       18
+Lake Huron center               1     1089       18
+
+pft_total_count values on Great Lakes fill cells:
+
+Conclusion: open-lake cells are class 18 in the 30 m NALCMS source, but na_mask==0 excludes most from class counting; remaining cells fail land-unit assembly because negative PFT sentinels and int16 fill values prevent lake counts from becoming valid PCT_LAKE.
+Wrote validation outputs to /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/results_c260603_sanity/internal_validation
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+/Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/run_sanity_and_figures_c260603.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+========== 1. Great Lakes diagnostic ==========
+
+========== 2. Internal validation ==========
+
+========== 3. Extended sanity ==========
+Land-unit closure failures (>0.01 pp): 0 / 21,356,113
+  max error: 0.000005 pp
+PFT closure failures (>0.01 pp): 10418 / 20,648,442 (max 100 pp)
+GL bbox land cells: 1,108,899
+  PCT_LAKE > 0: 607,353
+  PCT_LAKE == 100: 220,250
+  PCT_LAKE NaN on land: 0
+land_fraction range on land: 0.09 – 100.00
+  partial (<100%): 307,378
+Problem cell (j=4746,i=5822): PCT_LAKE=3.74, PCT_NATVEG=96.26, land_fraction=100.00, total_count=1122
+
+========== 4. Figures ==========
+Wrote figures_c260603_surfdata_land_fraction_full_vs_gl_zoom.png
+Wrote figures_c260603_surfdata_pct_natveg_full_vs_gl_zoom.png
+Wrote figures_c260603_surfdata_pct_urban_full_vs_gl_zoom.png
+Wrote figures_c260603_surfdata_pct_lake_full_vs_gl_zoom.png
+Wrote figures_c260603_surfdata_pct_glacier_full_vs_gl_zoom.png
+Wrote figures_c260603_surfdata_pct_natpft00_full_vs_gl_zoom.png
+Wrote figures_c260603_surfdata_pct_natpft01_full_vs_gl_zoom.png
+Wrote figures_c260603_surfdata_pct_natpft02_full_vs_gl_zoom.png
+Wrote figures_c260603_surfdata_pct_natpft03_full_vs_gl_zoom.png
+Wrote figures_c260603_surfdata_pct_natpft04_full_vs_gl_zoom.png
+Wrote figures_c260603_surfdata_pct_natpft05_full_vs_gl_zoom.png
+Wrote figures_c260603_surfdata_pct_natpft06_full_vs_gl_zoom.png
+Wrote figures_c260603_surfdata_pct_natpft07_full_vs_gl_zoom.png
+Wrote figures_c260603_surfdata_pct_natpft08_full_vs_gl_zoom.png
+Wrote figures_c260603_surfdata_pct_natpft09_full_vs_gl_zoom.png
+Wrote figures_c260603_surfdata_pct_natpft10_full_vs_gl_zoom.png
+Wrote figures_c260603_surfdata_pct_natpft11_full_vs_gl_zoom.png
+Wrote figures_c260603_surfdata_pct_natpft12_full_vs_gl_zoom.png
+Wrote figures_c260603_surfdata_pct_natpft13_full_vs_gl_zoom.png
+Wrote figures_c260603_surfdata_pct_natpft14_full_vs_gl_zoom.png
+Wrote figures_c260603_surfdata_pct_natpft15_full_vs_gl_zoom.png
+Wrote figures_c260603_surfdata_pct_natpft16_full_vs_gl_zoom.png
+
+Wrote /Users/7xw/Documents/Work/ELM_ECP/kiloCraft_dev/NA_surfdataGEN/NADaymet/dataProduct_DOI/results_c260603_sanity/SANITY_CHECK_c260603.md
+Done.
